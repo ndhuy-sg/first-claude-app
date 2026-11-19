@@ -4,8 +4,12 @@
 // openapi-fetch captures `fetch` and `Request` when the client is created, and Node's
 // Request rejects the relative base URL "/api/v1", so both are patched here at load time.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import type { ReactElement } from "react";
+import { afterEach } from "vitest";
+
+// vitest runs without globals, so Testing Library cannot register its own cleanup.
+afterEach(() => cleanup());
 
 const ORIGIN = "http://localhost";
 const NativeRequest = globalThis.Request;

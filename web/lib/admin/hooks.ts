@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState } from "react";
 import { api, ApiRequestError, unwrap } from "@/lib/api/client";
 import type { Me } from "./permissions";
+import { defaultScope, type Scope } from "./scope";
 
 export const qk = {
   me: ["auth", "me"] as const,
@@ -60,6 +61,12 @@ export function useBranchCodes(): (id: number | null | undefined) => string {
     if (id === null || id === undefined) return "Toàn chuỗi";
     return data?.find((b) => b.id === id)?.code ?? `#${id}`;
   };
+}
+
+/** Branch scope state of a page, starting at the user's default (owner: Toàn chuỗi, ql: own branch). */
+export function useScope(): [Scope, (s: Scope) => void] {
+  const me = useMe();
+  return useState<Scope>(() => defaultScope(me));
 }
 
 export function errorMessage(err: unknown): string {
