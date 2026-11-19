@@ -11,6 +11,7 @@ import (
 
 	"github.com/ndhuy-sg/first-claude-app/api/internal/auth"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/reports"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/store"
 )
 
@@ -48,7 +49,7 @@ func NewRouter(d *platform.Deps) *gin.Engine {
 	// payments.Register(api, d)
 	// shifts.Register(api, d)
 	// invoices.Register(api, d)
-	// reports.Register(api, d)
+	reports.Register(api, d)
 	// auditlog.Register(api, d)
 	// events.Register(api, d)
 
