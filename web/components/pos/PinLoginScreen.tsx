@@ -68,8 +68,8 @@ export function PinLoginScreen() {
           </p>
         </div>
         <div>
-          <p className="text-5xl font-bold tabular-nums" suppressHydrationWarning>{formatTime(new Date(now))}</p>
-          <p className="mt-1 text-white/70" suppressHydrationWarning>{formatDate(new Date(now))}</p>
+          <p className="text-5xl font-bold tabular-nums" suppressHydrationWarning>{now ? formatTime(new Date(now)) : "--:--"}</p>
+          <p className="mt-1 text-white/70" suppressHydrationWarning>{now ? formatDate(new Date(now)) : ""}</p>
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <h2 className="text-base font-semibold text-white/80">Chọn nhân viên</h2>

@@ -19,7 +19,7 @@ const STATUS: Record<Table["status"], { label: string; card: string }> = {
   awaiting_payment: { label: "Chờ thanh toán", card: "bg-[#ffe8a3] text-navy border-gold-line" },
 };
 
-function TableCard({ table, now, onOpen, disabled }: { table: Table; now: number; onOpen: () => void; disabled: boolean }) {
+function TableCard({ table, now, onOpen, disabled }: { table: Table; now: number | null; onOpen: () => void; disabled: boolean }) {
   const s = STATUS[table.status];
   const o = table.openOrder;
   return (
@@ -32,7 +32,7 @@ function TableCard({ table, now, onOpen, disabled }: { table: Table; now: number
     >
       <span className="flex items-baseline justify-between">
         <span className="text-xl font-bold">{table.name}</span>
-        {o && <span className="text-sm opacity-80">{minutesSince(o.createdAt, now)} phút</span>}
+        {o && now && <span className="text-sm opacity-80">{minutesSince(o.createdAt, now)} phút</span>}
       </span>
       <span className="text-sm font-semibold">{o ? `${s.label} · ${o.itemCount} món` : s.label}</span>
       <span className="text-lg font-bold">{o ? formatVND(o.total) : " "}</span>

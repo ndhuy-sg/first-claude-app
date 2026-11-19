@@ -50,9 +50,9 @@ export function OpenShiftScreen() {
       <section className="flex flex-1 flex-col gap-6">
         <h1 className="text-3xl font-bold">Mở ca</h1>
         <div className="grid grid-cols-3 gap-4">
-          <Tile label="Ca" value={shiftName(new Date(now).toISOString())} />
+          <Tile label="Ca" value={now ? shiftName(new Date(now).toISOString()) : ""} />
           <Tile label="Máy" value={`${me.device?.branchCode ?? ""} · ${me.device?.name ?? ""}`} />
-          <Tile label="Bắt đầu" value={formatTime(new Date(now))} />
+          <Tile label="Bắt đầu" value={now ? formatTime(new Date(now)) : ""} />
         </div>
         <div className="rounded-2xl border border-line bg-white p-6">
           <p className="text-muted">Tiền đầu ca (tiền mặt trong két)</p>

@@ -1,18 +1,25 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { ApiRequestError } from "@/lib/api/client";
 import { isNetworkError } from "./connectivity";
 import { useLogout } from "./mutations";
 
-/** Current time, refreshed every `ms` (for "12 phút" on table cards and the login clock). */
-export function useNow(ms = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), ms);
-    return () => clearInterval(t);
-  }, [ms]);
-  return now;
+const nowSecond = () => Math.floor(Date.now() / 1000) * 1000;
+
+/**
+ * Current time (ms), refreshed every `ms`. null while prerendering on the server (Cache Components
+ * forbids reading the clock there), so callers render a placeholder until hydration.
+ */
+export function useNow(ms = 30_000): number | null {
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      const t = setInterval(cb, ms);
+      return () => clearInterval(t);
+    },
+    [ms],
+  );
+  return useSyncExternalStore(subscribe, nowSecond, () => null);
 }
 
 /** Vietnamese message for an error from a mutation or query. */

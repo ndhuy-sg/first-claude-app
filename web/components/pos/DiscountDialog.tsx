@@ -30,7 +30,8 @@ export function DiscountDialog({
   const [pct, setPct] = useState<number>(order.discount?.type === "percent" ? order.discount.value : 0);
   const [amountStr, setAmountStr] = useState(order.discount?.type === "amount" ? String(order.discount.value) : "");
   const [reason, setReason] = useState(order.discount?.reason || DISCOUNT_REASONS[0]);
-  const [managerId, setManagerId] = useState<number | null>(managers[0]?.id ?? null);
+  const [pickedManager, setManagerId] = useState<number | null>(null);
+  const managerId = pickedManager ?? managers[0]?.id ?? null;
   const [error, setError] = useState("");
 
   const value = type === "percent" ? pct : Number(amountStr || "0");
