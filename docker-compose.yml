@@ -1,0 +1,170 @@
+# Mộc POS – production stack on one VM (Oracle Cloud Always Free, ARM64). See docs/DEPLOY.md.
+#
+#   cp .env.example .env && nano .env      # fill in secrets
+#   docker compose pull && docker compose up -d
+#
+# Nothing listens on a public port: Cloudflare Tunnel (cloudflared) dials out to Cloudflare and
+# routes  /api/*  → api:8080  and everything else → web:3000  (deploy/cloudflared/config.yml).
+# Backups: postgres ships every WAL segment to R2 (archive_command, ≤ 5 min of data at risk) and
+# the "backup" sidecar takes a full base backup every night; both encrypted, 30 days kept.
+
+name: mocpos
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+x-backup-env: &backup-env
+  BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
+  R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+  R2_BUCKET: ${R2_BUCKET:-}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+  BACKUP_PREFIX: ${BACKUP_PREFIX:-mocpos}
+  BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+
+x-app-env: &app-env
+  DATABASE_URL: postgres://${POSTGRES_USER:-mocpos}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-mocpos}?sslmode=disable
+  COOKIE_SECURE: "true"
+  ALLOWED_ORIGINS: https://${DOMAIN:?set DOMAIN in .env}
+  PUBLIC_BASE_URL: https://${DOMAIN}
+  TZ: Asia/Ho_Chi_Minh
+
+services:
+  postgres:
+    image: ${IMAGE_PREFIX:-ghcr.io/ndhuy-sg}/mocpos-postgres:${IMAGE_TAG:-latest}
+    build: { context: ., dockerfile: deploy/postgres/Dockerfile }
+    restart: unless-stopped
+    shm_size: 256mb
+    stop_grace_period: 60s
+    environment:
+      <<: *backup-env
+      POSTGRES_USER: ${POSTGRES_USER:-mocpos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-mocpos}
+    # Tuned for the 12 GB VM shared with the app containers.
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=/usr/local/bin/wal-push.sh %p
+      - -c
+      - archive_timeout=300
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - effective_cache_size=6GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=150
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - timezone=UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # Nightly base backup + retention (deploy/backup/backup-loop.sh). Also the place to run
+  # restore-test.sh (N-02) and restore.sh (disaster recovery): docker compose run --rm backup <script>
+  backup:
+    image: ${IMAGE_PREFIX:-ghcr.io/ndhuy-sg}/mocpos-postgres:${IMAGE_TAG:-latest}
+    build: { context: ., dockerfile: deploy/postgres/Dockerfile }
+    restart: unless-stopped
+    user: postgres
+    command: ["backup-loop.sh"]
+    environment:
+      <<: *backup-env
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-mocpos}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-mocpos}
+      PGDATA: /var/lib/postgresql/data
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      BACKUP_RETENTION_FULL: ${BACKUP_RETENTION_FULL:-30}
+      BACKUP_HEARTBEAT_URL: ${BACKUP_HEARTBEAT_URL:-}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    depends_on:
+      postgres: { condition: service_healthy }
+    logging: *logging
+
+  # One-shot: applies database migrations, then exits. api/worker start only after it succeeded.
+  migrate:
+    image: ${IMAGE_PREFIX:-ghcr.io/ndhuy-sg}/mocpos-api:${IMAGE_TAG:-latest}
+    build: { context: ./api }
+    command: ["migrate"]
+    restart: "no"
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    logging: *logging
+
+  api:
+    image: ${IMAGE_PREFIX:-ghcr.io/ndhuy-sg}/mocpos-api:${IMAGE_TAG:-latest}
+    build: { context: ./api }
+    command: ["serve"]
+    restart: unless-stopped
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/healthz"]
+      interval: 15s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    logging: *logging
+
+  worker:
+    image: ${IMAGE_PREFIX:-ghcr.io/ndhuy-sg}/mocpos-api:${IMAGE_TAG:-latest}
+    build: { context: ./api }
+    command: ["worker"]
+    restart: unless-stopped
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    logging: *logging
+
+  web:
+    image: ${IMAGE_PREFIX:-ghcr.io/ndhuy-sg}/mocpos-web:${IMAGE_TAG:-latest}
+    build: { context: ./web, args: { API_ORIGIN: "http://api:8080" } }
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+    depends_on:
+      api: { condition: service_healthy }
+    logging: *logging
+
+  cloudflared:
+    image: cloudflare/cloudflared:${CLOUDFLARED_TAG:-2026.11.1}
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    volumes:
+      - ./deploy/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+    depends_on:
+      api: { condition: service_healthy }
+      web: { condition: service_started }
+    logging: *logging
+
+volumes:
+  pgdata:

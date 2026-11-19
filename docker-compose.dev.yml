@@ -1,0 +1,31 @@
+# Local override: build everything from source, no tunnel, plain HTTP, ports on localhost.
+#
+#   DOMAIN=localhost POSTGRES_PASSWORD=dev CLOUDFLARE_TUNNEL_TOKEN=unused \
+#     docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm api seed   # demo data
+#
+# Then open http://localhost:3000 (web) – /api is rewritten to the api container.
+# Without Docker, see docs/DEV.md (api/scripts/test-db.sh + go run + npm run dev).
+services:
+  postgres:
+    ports: ["127.0.0.1:5432:5432"]
+  backup:
+    profiles: ["backup"] # off unless: --profile backup
+  migrate:
+    pull_policy: build
+  api:
+    pull_policy: build
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      COOKIE_SECURE: "false"
+      ALLOWED_ORIGINS: http://localhost:3000
+      PUBLIC_BASE_URL: http://localhost:3000
+  worker:
+    pull_policy: build
+    environment:
+      COOKIE_SECURE: "false"
+  web:
+    pull_policy: build
+    ports: ["127.0.0.1:3000:3000"]
+  cloudflared:
+    profiles: ["tunnel"] # no tunnel locally

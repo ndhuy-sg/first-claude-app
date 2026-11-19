@@ -1,0 +1,24 @@
+# Cloudflare Tunnel ingress for Mộc POS (mounted into the cloudflared container).
+# The tunnel itself is identified by TUNNEL_TOKEN (CLOUDFLARE_TUNNEL_TOKEN in .env).
+#
+# These rules apply to a LOCALLY-managed tunnel (created with `cloudflared tunnel create`,
+# token from `cloudflared tunnel token <name>`), as described in docs/DEPLOY.md.
+# If the tunnel was created in the Cloudflare dashboard instead, the dashboard's
+# "Public Hostnames" win: enter the same two routes there (path ^/api/ → http://api:8080,
+# then everything → http://web:3000).
+#
+# Rules are matched top to bottom; `path` is a regular expression.
+ingress:
+  # Go API (Gin). Also carries the SSE stream /api/v1/events (cloudflared streams it unbuffered).
+  - path: ^/api/
+    service: http://api:8080
+    originRequest:
+      connectTimeout: 10s
+      # SSE connections stay open; the API sends a heartbeat every 25 s.
+      keepAliveTimeout: 90s
+  # Next.js: /pos, /admin, /tra-cuu, static assets.
+  - service: http://web:3000
+
+# Metrics/readiness endpoint inside the container network only (not published).
+metrics: 0.0.0.0:2000
+no-autoupdate: true
