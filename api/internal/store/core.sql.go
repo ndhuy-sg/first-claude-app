@@ -12,8 +12,8 @@ import (
 )
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (token_hash, user_id, device_id, kind, expires_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO sessions (token_hash, user_id, device_id, kind, expires_at, created_at, last_seen_at)
+VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $6::timestamptz)
 `
 
 type CreateSessionParams struct {
@@ -22,6 +22,7 @@ type CreateSessionParams struct {
 	DeviceID  *int64
 	Kind      string
 	ExpiresAt time.Time
+	Now       time.Time
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
@@ -31,6 +32,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 		arg.DeviceID,
 		arg.Kind,
 		arg.ExpiresAt,
+		arg.Now,
 	)
 	return err
 }
@@ -90,9 +92,14 @@ FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1
   AND s.revoked_at IS NULL
-  AND s.expires_at > now()
+  AND s.expires_at > $2::timestamptz
   AND u.disabled_at IS NULL
 `
+
+type GetActiveSessionParams struct {
+	TokenHash string
+	Now       time.Time
+}
 
 type GetActiveSessionRow struct {
 	TokenHash    string
@@ -106,8 +113,8 @@ type GetActiveSessionRow struct {
 	UserBranchID *int64
 }
 
-func (q *Queries) GetActiveSession(ctx context.Context, tokenHash string) (GetActiveSessionRow, error) {
-	row := q.db.QueryRow(ctx, getActiveSession, tokenHash)
+func (q *Queries) GetActiveSession(ctx context.Context, arg GetActiveSessionParams) (GetActiveSessionRow, error) {
+	row := q.db.QueryRow(ctx, getActiveSession, arg.TokenHash, arg.Now)
 	var i GetActiveSessionRow
 	err := row.Scan(
 		&i.TokenHash,
@@ -324,10 +331,15 @@ func (q *Queries) TouchDevice(ctx context.Context, id int64) error {
 }
 
 const touchSession = `-- name: TouchSession :exec
-UPDATE sessions SET last_seen_at = now() WHERE token_hash = $1
+UPDATE sessions SET last_seen_at = $1::timestamptz WHERE token_hash = $2
 `
 
-func (q *Queries) TouchSession(ctx context.Context, tokenHash string) error {
-	_, err := q.db.Exec(ctx, touchSession, tokenHash)
+type TouchSessionParams struct {
+	Now       time.Time
+	TokenHash string
+}
+
+func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) error {
+	_, err := q.db.Exec(ctx, touchSession, arg.Now, arg.TokenHash)
 	return err
 }
