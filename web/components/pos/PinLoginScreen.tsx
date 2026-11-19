@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { ApiRequestError } from "@/lib/api/client";
 import { formatDate, formatTime } from "@/lib/format";
 import { usePinLogin } from "@/lib/pos/mutations";
 import { useDevice } from "@/lib/pos/queries";
@@ -8,6 +9,27 @@ import { errorCode, errorMessage, ROLE_LABEL, useNow } from "@/lib/pos/util";
 import { PosLoading } from "./PosFrame";
 import { initial, Logo } from "./PosHeader";
 import { PinPad } from "./PinPad";
+
+/** Message for a failed PIN login: 401 INVALID_PIN, 423 ACCOUNT_LOCKED (details.lockedUntil), 403 ACCOUNT_DISABLED. */
+export function pinErrorMessage(e: unknown): string {
+  switch (errorCode(e)) {
+    case "INVALID_PIN":
+    case "UNAUTHENTICATED":
+      return "Mã PIN không đúng, vui lòng thử lại";
+    case "ACCOUNT_LOCKED": {
+      const until = (e as ApiRequestError).body.details?.lockedUntil;
+      return typeof until === "string"
+        ? `Nhập sai PIN quá nhiều lần. Tài khoản tạm khoá đến ${formatTime(until)}.`
+        : "Nhập sai PIN quá nhiều lần. Tài khoản đang tạm khoá.";
+    }
+    case "ACCOUNT_DISABLED":
+      return "Tài khoản đã bị khoá. Liên hệ quản lý chi nhánh.";
+    case "DEVICE_REQUIRED":
+      return "Máy chưa được kích hoạt.";
+    default:
+      return errorMessage(e);
+  }
+}
 
 /** Screen 1 – PIN login (W-02). */
 export function PinLoginScreen() {
@@ -30,7 +52,8 @@ export function PinLoginScreen() {
     login.mutateAsync({ userId: staffId!, pin }).then(
       () => router.replace("/pos"),
       (e) => {
-        setError(errorCode(e) === "INVALID_PIN" || errorCode(e) === "UNAUTHENTICATED" ? "Mã PIN không đúng, vui lòng thử lại" : errorMessage(e));
+        setError(pinErrorMessage(e));
+        if (errorCode(e) === "DEVICE_REQUIRED") router.replace("/pos/kich-hoat");
         throw e;
       },
     );

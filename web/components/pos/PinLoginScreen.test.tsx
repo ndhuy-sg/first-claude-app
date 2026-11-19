@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useIdleLock } from "@/lib/pos/idle-lock";
 import { deviceInfo, meLan } from "@/lib/pos/test-fixtures";
 import { HttpError, mockApi, renderPos, routerMock } from "@/lib/pos/test-utils";
-import { PinLoginScreen } from "./PinLoginScreen";
+import { PinLoginScreen, pinErrorMessage } from "./PinLoginScreen";
+import { ApiRequestError } from "@/lib/api/client";
 import { posRedirect } from "./PosGate";
 
 vi.mock("@/lib/api/client", async (orig) => ({ ...(await orig<object>()), api: (await import("@/lib/pos/test-utils")).mockApi.api }));
@@ -71,6 +72,12 @@ describe("W-02 PIN login", () => {
     // At most 6 digits
     await pressPin(user, "12345678");
     expect(dotsFilled()).toBe(6);
+  });
+
+  it("explains locked (423) and disabled (403) accounts", () => {
+    const locked = new ApiRequestError(423, { code: "ACCOUNT_LOCKED", message: "x", details: { lockedUntil: "2026-11-19T00:15:00Z" } });
+    expect(pinErrorMessage(locked)).toBe("Nhập sai PIN quá nhiều lần. Tài khoản tạm khoá đến 07:15.");
+    expect(pinErrorMessage(new ApiRequestError(403, { code: "ACCOUNT_DISABLED", message: "x" }))).toBe("Tài khoản đã bị khoá. Liên hệ quản lý chi nhánh.");
   });
 
   it("sends a tablet without device to activation", async () => {
