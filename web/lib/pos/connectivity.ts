@@ -43,6 +43,8 @@ function subscribe(cb: () => void) {
   listeners.add(cb);
   const onOnline = () => {
     browserOnline = true;
+    // Optimistic: the next failed request marks the server unreachable again.
+    serverReachable = true;
     emit();
   };
   const onOffline = () => {

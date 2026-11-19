@@ -78,7 +78,7 @@ export function Cart({
                 aria-label={it.qty === 1 ? `Xoá ${it.name}` : `Giảm ${it.name}`}
                 onClick={() => (it.qty === 1 ? onRemove(it) : onQty(it, it.qty - 1))}
                 disabled={busy || !online}
-                className="h-10 w-11 rounded-lg border border-line-strong text-xl disabled:text-muted"
+                className="h-11 w-11 rounded-lg border border-line-strong text-xl disabled:text-muted"
               >
                 −
               </button>
@@ -88,7 +88,7 @@ export function Cart({
                 aria-label={`Tăng ${it.name}`}
                 onClick={() => onQty(it, it.qty + 1)}
                 disabled={busy || !online}
-                className="h-10 w-11 rounded-lg border border-line-strong text-xl disabled:text-muted"
+                className="h-11 w-11 rounded-lg border border-line-strong text-xl disabled:text-muted"
               >
                 +
               </button>
