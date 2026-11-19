@@ -125,7 +125,7 @@ func shiftCN2(env *testutil.Env) int64 {
 func getReport(t *testing.T, c *testutil.Client, q string) salesReport {
 	t.Helper()
 	var r salesReport
-	c.Get("/api/v1/reports/sales?" + q).MustStatus(t, 200).JSON(t, &r)
+	c.Get("/api/v1/reports/sales?"+q).MustStatus(t, 200).JSON(t, &r)
 	return r
 }
 
