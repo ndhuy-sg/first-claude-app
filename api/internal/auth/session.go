@@ -55,7 +55,7 @@ func CreateSession(ctx context.Context, q *store.Queries, userID int64, deviceID
 		ttl = PINSessionTTL
 	}
 	err := q.CreateSession(ctx, store.CreateSessionParams{
-		TokenHash: hash, UserID: userID, DeviceID: deviceID, Kind: kind, ExpiresAt: now.Add(ttl),
+		TokenHash: hash, UserID: userID, DeviceID: deviceID, Kind: kind, ExpiresAt: now.Add(ttl), Now: now,
 	})
 	return raw, err
 }
@@ -113,7 +113,8 @@ func Middleware(pool *pgxpool.Pool, now func() time.Time, idleMinutes func(ctx c
 			return
 		}
 		hash := HashToken(raw)
-		s, err := q.GetActiveSession(ctx, hash)
+		t := now()
+		s, err := q.GetActiveSession(ctx, store.GetActiveSessionParams{TokenHash: hash, Now: t})
 		if err != nil {
 			if !errors.Is(err, pgx.ErrNoRows) {
 				_ = c.Error(err)
@@ -122,13 +123,13 @@ func Middleware(pool *pgxpool.Pool, now func() time.Time, idleMinutes func(ctx c
 			return
 		}
 		if s.Kind == "pin" && idleMinutes != nil {
-			if now().Sub(s.LastSeenAt) > time.Duration(idleMinutes(ctx))*time.Minute {
+			if t.Sub(s.LastSeenAt) > time.Duration(idleMinutes(ctx))*time.Minute {
 				_ = q.RevokeSession(ctx, hash)
 				c.Next()
 				return
 			}
 		}
-		_ = q.TouchSession(ctx, hash)
+		_ = q.TouchSession(ctx, store.TouchSessionParams{Now: t, TokenHash: hash})
 		c.Set(ctxPrincipal, &Principal{
 			UserID: s.UserID, Name: s.UserName, Role: domain.Role(s.UserRole), BranchID: s.UserBranchID,
 			DeviceID: s.DeviceID, SessionHash: hash, Kind: s.Kind,
