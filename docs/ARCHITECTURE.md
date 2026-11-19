@@ -40,9 +40,12 @@ Toàn bộ chạy bằng Docker Compose trên **một máy chủ cloud** phục 
 
   | Màu | Mã |
   |---|---|
-  | Nền | `#F7F1E8` |
-  | Chữ | `#3B2A20` |
-  | Nhấn | `#8B5E3C` |
+  | Xanh navy (thanh trên cùng, menu bên, chữ chính, mục đang chọn) | `#14213D` |
+  | Vàng (nút chính, logo) | `#F5B700`, chữ trên nút vàng dùng navy |
+  | Trắng (thẻ, ô nhập) | `#FFFFFF` |
+  | Nền trang | `#F5F7FA` |
+  | Chữ phụ | `#5B6478` |
+  | Viền | `#DDE3EC` |
   | Thành công | `#2F6B4F` |
   | Lỗi | `#A23B2A` |
 
