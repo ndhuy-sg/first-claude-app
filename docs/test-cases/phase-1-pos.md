@@ -24,7 +24,7 @@
 - Thuế suất mẫu: 8%, giá bán đã gồm thuế.
 - Cơ quan thuế: **giả lập** (một máy chủ giả nhận dữ liệu hoá đơn). Có thể cài cho nó trả thành công, trả lỗi hoặc không phản hồi.
 
-Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nhận (xem cuối tài liệu).
+Các case đánh dấu dựa trên một giả định cần bạn xác nhận (xem cuối tài liệu).
 
 ---
 
@@ -35,10 +35,10 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | D-02 | Tuỳ chọn 0đ ("ít đá") | Không làm đổi giá |
 | D-03 | Giảm giá theo % | 10% của 86.000 → giảm 8.600, còn **77.400đ**. Tiền giảm làm tròn xuống đến đồng |
 | D-04 | Giảm giá theo số tiền lớn hơn tổng đơn | Bị từ chối, tổng đơn không bao giờ âm |
-| D-05 ❓ | Giảm giá trên 20% | Hàm trả về "cần quản lý duyệt" |
+| D-05 | Giảm giá trên 20% | Hàm trả về "cần quản lý duyệt" |
 | D-06 | Tiền thối | Khách đưa 100.000 cho đơn 86.000 → thối 14.000. Khách đưa ít hơn tổng đơn → báo lỗi |
 | D-07 | Gợi ý mệnh giá cho đơn 86.000 | 86.000, 90.000, 100.000, 200.000, 500.000 (không trùng, tăng dần, đều ≥ tổng) |
-| D-08 ❓ | Tách thuế từ giá đã gồm thuế | 86.000đ, thuế 8% → trước thuế **79.630**, thuế **6.370** (cộng lại đúng 86.000). Thuế 10% → 78.182 và 7.818 |
+| D-08 | Tách thuế từ giá đã gồm thuế | 86.000đ, thuế 8% → trước thuế **79.630**, thuế **6.370** (cộng lại đúng 86.000). Thuế 10% → 78.182 và 7.818 |
 | D-09 | Nội dung mã VietQR | Đúng chuẩn (mã kiểm tra CRC hợp lệ), chứa đúng ngân hàng, số tài khoản, số tiền và nội dung là mã đơn |
 | D-10 | Mã đơn | Dạng `CN1-20261119-0001`. Đánh số tăng dần theo chi nhánh và theo ngày (giờ Việt Nam), không trùng |
 | D-11 | Tiền cuối ca theo hệ thống | = tiền đầu ca + tiền mặt thu − tiền mặt hoàn. Chênh lệch = tiền đếm được − tiền theo hệ thống |
@@ -50,10 +50,10 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | ID | Kiểm tra | Kết quả mong đợi |
 |---|---|---|
 | A-01 | Quản lý đăng nhập đúng email + mật khẩu | 200. Cookie có `HttpOnly`, `Secure`, `SameSite=Lax` |
-| A-02 ❓ | Sai mật khẩu | 401 với thông báo chung chung (không nói sai email hay sai mật khẩu). Sai 5 lần thì khoá 15 phút |
+| A-02 | Sai mật khẩu | 401 với thông báo chung chung (không nói sai email hay sai mật khẩu). Sai 5 lần thì khoá 15 phút |
 | A-03 | Kích hoạt máy POS | Quản lý CN1 đăng nhập trên máy tính bảng và kích hoạt nó → máy được gắn vào CN1 |
 | A-04 | Đăng nhập bằng PIN trên máy POS của CN1 | PIN của `tn1` → thành công. PIN của `tn2` (nhân viên CN2) → 401 |
-| A-05 ❓ | Không thao tác 15 phút | Phiên PIN tự khoá, phải nhập lại PIN |
+| A-05 | Không thao tác 15 phút | Phiên PIN tự khoá, phải nhập lại PIN |
 | A-06 | Khoá tài khoản nhân viên | Phiên của người đó mất hiệu lực ngay, yêu cầu tiếp theo bị 401 |
 | A-07 | Đăng xuất | Cookie cũ không dùng được nữa |
 | A-08 | Gọi API khi chưa đăng nhập | 401. Chỉ trang tra cứu hoá đơn `/tra-cuu/:code` là công khai |
@@ -85,8 +85,8 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | O-05 | Thêm tuỳ chọn không thuộc món đó | 400 |
 | O-06 | Đổi giá món sau khi món đã nằm trong đơn | Dòng cũ giữ giá cũ, dòng thêm sau dùng giá mới |
 | O-07 | Sửa số lượng, xoá món khi chưa thanh toán | Thành công, tổng đơn tính lại đúng |
-| O-08 ❓ | Giảm giá ≤ 20% | Thu ngân tự làm được, có ghi nhật ký |
-| O-09 ❓ | Giảm giá > 20% | Không có PIN quản lý → 403. Có PIN quản lý hợp lệ → thành công, nhật ký ghi tên người duyệt |
+| O-08 | Giảm giá ≤ 20% | Thu ngân tự làm được, có ghi nhật ký |
+| O-09 | Giảm giá > 20% | Không có PIN quản lý → 403. Có PIN quản lý hợp lệ → thành công, nhật ký ghi tên người duyệt |
 | O-10 | Chuyển bàn | Sang bàn trống → thành công. Sang bàn đang có khách → 409 |
 | O-11 | Gộp bàn 5 vào bàn 6 | Món của bàn 5 chuyển sang đơn bàn 6. Đơn bàn 5 đóng với trạng thái "đã gộp", bàn 5 trống lại |
 | O-12 | Tách hoá đơn | Món được chọn chuyển sang đơn mới. Tổng 2 đơn bằng tổng đơn ban đầu |
@@ -103,7 +103,7 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | P-03 | Trả tiền mặt ít hơn | 400 |
 | P-04 | Chuyển khoản VietQR | Tạo mã QR với số tiền và mã đơn, khoản thanh toán ở trạng thái "chờ". Thu ngân bấm "Đã nhận tiền" → đơn "đã thanh toán" |
 | P-05 | Huỷ QR rồi chuyển sang trả tiền mặt | QR bị huỷ, đơn thanh toán bằng tiền mặt, chỉ có 1 khoản thanh toán thành công |
-| P-06 ❓ | Trả một đơn bằng 2 cách (một phần tiền mặt, một phần QR) | Thành công khi tổng các khoản bằng tổng đơn. Thiếu thì đơn chưa thanh toán xong |
+| P-06 | Trả một đơn bằng 2 cách (một phần tiền mặt, một phần QR) | Thành công khi tổng các khoản bằng tổng đơn. Thiếu thì đơn chưa thanh toán xong |
 | P-07 | Thêm món, giảm giá hoặc huỷ đơn đã thanh toán | 409 "Đơn đã thanh toán" |
 | P-08 | Bấm thanh toán 2 lần hoặc mạng gửi lại yêu cầu (cùng mã chống trùng `Idempotency-Key`) | Chỉ ghi nhận 1 lần thanh toán |
 | P-09 | Hoàn tiền cho đơn đã thanh toán | Chỉ quản lý làm được, bắt buộc nhập lý do. Tạo khoản hoàn tiền, ghi nhật ký và **tự gửi yêu cầu huỷ hoá đơn điện tử** |
@@ -123,6 +123,8 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | E-10 | Cấp số hoá đơn khi 50 đơn ở CN1 thanh toán cùng lúc | Số hoá đơn liên tục, không trùng, không nhảy số. CN2 có dãy số riêng |
 | E-11 | Trang tra cứu `/tra-cuu/:code` | Không cần đăng nhập, hiện đúng hoá đơn. Mã sai → 404. Không đoán được mã của hoá đơn khác (mã ngẫu nhiên, đủ dài) |
 | E-12 | Định dạng dữ liệu hoá đơn | Đúng định dạng cơ quan thuế quy định (so với file mẫu chuẩn) |
+| E-13 | Công tắc gửi cơ quan thuế đang **tắt** (mặc định) | Hoá đơn vẫn được cấp số, lưu và tra cứu được, trạng thái "chưa gửi". Bật công tắc thì các hoá đơn "chưa gửi" tự được gửi đi |
+| E-14 | Thông tin thuế của chi nhánh | Chủ chuỗi nhập được mã số thuế, ký hiệu, thuế suất. Dùng được cả khi các chi nhánh chung một mã số thuế lẫn khi mỗi chi nhánh một mã |
 
 ## S. Ca làm (API)
 | ID | Kiểm tra | Kết quả mong đợi |
@@ -130,7 +132,7 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | S-01 | Mở ca với tiền đầu ca | Mỗi máy POS chỉ có 1 ca đang mở. Mở ca thứ 2 → 409 |
 | S-02 | Chốt ca, nhập tiền đếm được | Hệ thống tính tiền lẽ ra phải có, chênh lệch, tổng tiền mặt, tổng QR và số đơn |
 | S-03 | Chốt ca khi còn đơn chưa thanh toán | 409, kèm danh sách các đơn còn mở |
-| S-04 ❓ | Chênh lệch tiền lớn hơn 50.000đ | Bắt buộc nhập ghi chú |
+| S-04 | Chênh lệch tiền lớn hơn 50.000đ | Bắt buộc nhập ghi chú |
 | S-05 | Đơn trong ca | Mỗi đơn đã thanh toán thuộc đúng ca đang mở lúc thanh toán |
 
 ## R. Báo cáo bán hàng (API)
@@ -160,7 +162,7 @@ Màn hình POS được kiểm tra ở khổ 1180×820 (iPad) và 1280×800 (And
 | W-03 | Bố cục POS | Nhìn thấy cùng lúc danh sách nhóm, lưới món và giỏ hàng. Mọi nút có kích thước ≥ 44px |
 | W-04 | Chọn bàn → chọn món → hộp chọn size và tuỳ chọn → thêm vào giỏ | Giỏ hiện đúng dòng món và **43.000đ** |
 | W-05 | Món "hết món" | Bị làm mờ, không bấm được |
-| W-06 ❓ | Giảm giá 25% | Hiện bàn phím nhập PIN quản lý. Duyệt xong thì tổng đơn được cập nhật |
+| W-06 | Giảm giá 25% | Hiện bàn phím nhập PIN quản lý. Duyệt xong thì tổng đơn được cập nhật |
 | W-07 | Thanh toán tiền mặt | Có các nút gợi ý mệnh giá, hiện tiền thối, rồi chuyển sang màn hình hoàn tất có **mã QR tra cứu hoá đơn điện tử** |
 | W-08 | Thanh toán VietQR | Hiện mã QR kèm số tiền. Bấm "Đã nhận tiền" thì chuyển sang màn hình hoàn tất |
 | W-09 | Khách lấy hoá đơn công ty | Form có kiểm tra mã số thuế. Bỏ trống thì hoá đơn ghi "Khách lẻ" |
@@ -189,7 +191,7 @@ Màn hình POS được kiểm tra ở khổ 1180×820 (iPad) và 1280×800 (And
 
 ---
 
-## Giả định cần bạn xác nhận (các case ❓)
+## Giả định cần bạn xác nhận (các case)
 1. **Ngưỡng giảm giá:** thu ngân tự giảm tối đa **20%**, vượt mức này phải có PIN quản lý.
 2. **Bảo mật đăng nhập:** máy POS tự khoá sau **15 phút** không thao tác. Sai mật khẩu **5 lần** thì khoá **15 phút**.
 3. **Thuế:** giá bán **đã gồm thuế**, hệ thống tự tách tiền thuế. Thuế suất cài riêng cho từng chi nhánh (cần kế toán xác nhận).

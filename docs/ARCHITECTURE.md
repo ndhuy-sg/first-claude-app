@@ -7,16 +7,20 @@ Bản vẽ trực quan của tài liệu này nằm ở trang "Kiến trúc hệ
 ```
 Máy tính bảng POS (iPad/Android, PWA) ─┐
 Máy tính quản lý (/admin) ─────────────┤ HTTPS (+ SSE)
+Khách quét QR tra cứu hoá đơn ─────────┘
                                         ▼
-                    Caddy ── HTTPS tự động, chung một tên miền
-                    ├── /       → Next.js (chỉ giao diện)
-                    └── /api/*  → API Go + Gin ──► PostgreSQL ──► sao lưu hằng đêm ra lưu trữ ngoài
-                                   │ hàng chờ (bảng jobs)
-                                   ▼
-                                 Worker Go ──► Cơ quan thuế (trực tiếp hoặc qua T-VAN)
+        Cloudflare (gói Free): tên miền, HTTPS, chống tấn công
+                                        │ Cloudflare Tunnel (máy chủ không mở cổng ra Internet)
+                                        ▼
+   ┌──────── Máy chủ Oracle Cloud Always Free · Singapore · Docker Compose ────────┐
+   │  cloudflared ── /       → web (Next.js, chỉ giao diện)                        │
+   │              └─ /api/*  → api (Go + Gin) ──► PostgreSQL ◄── worker (Go)       │
+   └───────────────────────────────────────────────────────────────────────────────┘
+          PostgreSQL ──► sao lưu hằng đêm lên Cloudflare R2
+          worker     ──► cơ quan thuế (chỉ khi chủ chuỗi bật công tắc gửi)
 ```
 
-Toàn bộ chạy bằng Docker Compose trên **một máy chủ cloud** phục vụ cả 5 chi nhánh và kho tổng. API và worker là **cùng một chương trình Go**, chạy ở hai chế độ.
+Toàn bộ chạy bằng Docker Compose trên **một máy chủ miễn phí** (Oracle Cloud Always Free) phục vụ cả 5 chi nhánh và kho tổng. Bảng so sánh các phương án máy chủ miễn phí nằm trên canvas, trong khung "Phương án chốt". API và worker là **cùng một chương trình Go**, chạy ở hai chế độ.
 
 ## 2. Nguyên tắc
 1. **Go là nơi duy nhất quyết định** giá, phân quyền, trạng thái đơn và tồn kho. Next.js chỉ hiển thị và gọi API.
@@ -61,7 +65,7 @@ api/
     service/                ← nghiệp vụ: menu, đơn, thanh toán, ca, hoá đơn, báo cáo, kho
     store/                  ← code do sqlc sinh ra từ các file .sql
     invoice/                ← dựng dữ liệu hoá đơn, cấp số, trang tra cứu
-    taxgateway/             ← cách gửi tới cơ quan thuế: Direct | TVAN | Fake (để test)
+    taxgateway/             ← cách gửi tới cơ quan thuế: Off (mặc định) | Direct | TVAN | Fake (để test)
     worker/                 ← lấy việc từ bảng jobs (FOR UPDATE SKIP LOCKED), tự thử lại, lần sau chờ lâu hơn lần trước
   migrations/               ← goose
   openapi.yaml
@@ -87,11 +91,11 @@ api/
    - tạo `invoices` và `invoice_lines`;
    - thêm một việc vào `jobs`.
 2. POS hiện ngay mã QR trỏ tới `/tra-cuu/:code`. Khách xem được hoá đơn ngay, không phải chờ.
-3. Worker dựng dữ liệu hoá đơn theo định dạng của cơ quan thuế và gửi qua `taxgateway`. Kết quả mỗi lần gửi lưu vào `tax_submissions`.
+3. Nếu công tắc gửi đang **bật**, worker dựng dữ liệu hoá đơn theo định dạng của cơ quan thuế và gửi qua `taxgateway`. Nếu đang **tắt** (mặc định), hoá đơn được lưu ở trạng thái "chưa gửi" và sẽ được gửi khi công tắc bật. Kết quả mỗi lần gửi lưu vào `tax_submissions`.
 4. Nếu gửi lỗi, worker tự thử lại sau 1, 5, 15, 60 phút… Sau 10 lần vẫn lỗi thì chuyển trạng thái "thất bại" và báo trên trang quản trị, có nút "Gửi lại".
 5. Hoàn tiền thì tạo hoá đơn huỷ hoặc điều chỉnh theo cùng luồng trên.
 
-> Phải xác nhận trước khi làm bước 3: được gửi trực tiếp tới cơ quan thuế hay phải gửi qua T-VAN, định dạng dữ liệu, có cần chữ ký số không (xem `docs/PLAN.md` mục 6).
+> Chủ chuỗi tự nhập thông tin thuế của từng chi nhánh trong trang quản trị. Công tắc gửi chỉ nên bật sau khi đã đăng ký với cơ quan thuế (xem `docs/PLAN.md` mục 6).
 
 ## 6. Mô hình dữ liệu
 
@@ -115,6 +119,10 @@ api/
 - Mọi truy vấn đều dùng tham số (sqlc), không ghép chuỗi SQL.
 
 ## 8. Triển khai và vận hành
-- Docker Compose gồm `caddy`, `web`, `api`, `worker`, `postgres`. Một máy chủ 2–4 nhân là đủ.
-- Sao lưu `pg_dump` hằng đêm ra lưu trữ ngoài máy chủ, giữ 30 ngày. Mỗi tháng thử khôi phục một lần.
-- Log có cấu trúc (`slog`). Có endpoint kiểm tra tình trạng máy chủ, và cảnh báo khi hàng chờ hoá đơn bị dồn.
+- **Máy chủ:** Oracle Cloud Always Free, vùng Singapore, máy ARM 2 nhân, 12 GB RAM, 200 GB ổ đĩa, chạy Ubuntu.
+  - Nâng tài khoản lên Pay-As-You-Go để tránh bị thu hồi máy "nhàn rỗi", và đặt cảnh báo chi phí.
+- **Docker Compose** gồm `cloudflared`, `web`, `api`, `worker`, `postgres`. Mọi image đều build được cho ARM64.
+- **Cloudflare gói Free:** quản lý tên miền, HTTPS và tường lửa. `cloudflared` chia đường dẫn: `/` vào `web`, `/api/*` vào `api`. Máy chủ chỉ mở cổng SSH cho quản trị, chỉ cho phép từ IP được chỉ định.
+- **Sao lưu:** `pg_dump` hằng đêm, mã hoá rồi đẩy lên Cloudflare R2, giữ 30 ngày. Mỗi tháng thử khôi phục một lần.
+- **Chuyển máy chủ khi cần:** dựng Docker Compose trên máy mới, khôi phục bản sao lưu mới nhất, chuyển tunnel sang máy mới. Mục tiêu dưới 1 giờ.
+- **Giám sát:** log có cấu trúc (`slog`), endpoint `/healthz`, dịch vụ theo dõi miễn phí gọi vào định kỳ và cảnh báo khi máy chủ ngừng hoặc hàng chờ hoá đơn bị dồn.

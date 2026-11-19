@@ -26,7 +26,7 @@ Quy mô: **5 chi nhánh** và **1 kho tổng** quản lý nguyên vật liệu.
 | Cơ sở dữ liệu | PostgreSQL. Kết nối bằng `pgx`, truy vấn bằng `sqlc`, thay đổi cấu trúc bảng bằng `goose` |
 | Đăng nhập | Phiên đăng nhập lưu trong PostgreSQL, gửi qua cookie `httpOnly`. Mật khẩu và PIN mã hoá bcrypt |
 | Cập nhật tức thì | Server-Sent Events |
-| Triển khai | Docker Compose trên một máy chủ cloud (Caddy, Next.js, API Go, PostgreSQL). Sao lưu cơ sở dữ liệu mỗi ngày ra nơi khác |
+| Triển khai | **Tự dựng trên máy chủ miễn phí** Oracle Cloud Always Free (vùng Singapore, 2 nhân ARM, 12 GB RAM) bằng Docker Compose (Next.js, API Go, worker Go, PostgreSQL). Cloudflare gói Free lo tên miền, HTTPS và Tunnel. Sao lưu hằng đêm lên Cloudflare R2 (10 GB miễn phí). Chi phí duy nhất là tên miền, khoảng 300.000đ/năm |
 | Test | Go: `go test` và testcontainers-go. Giao diện: Vitest và Playwright (Chromium và WebKit) |
 
 ## 3. Quyết định nghiệp vụ đã chốt
@@ -43,6 +43,9 @@ Quy mô: **5 chi nhánh** và **1 kho tổng** quản lý nguyên vật liệu.
 | 8 | **Hệ thống tự phát hành hoá đơn điện tử, không dùng nhà cung cấp hoá đơn.** Hệ thống tự cấp số, dựng dữ liệu hoá đơn, có trang tra cứu riêng và tự gửi dữ liệu tới cơ quan thuế |
 | 9 | Thiết bị bán hàng: **iPad hoặc máy tính bảng Android** |
 | 10 | **Làm thẳng POS, không làm website giới thiệu** |
+| 11 | Duyệt cả 6 giả định trong bộ test case: giảm giá tối đa 20% (vượt mức phải có PIN quản lý); tự khoá sau 15 phút; sai mật khẩu 5 lần thì khoá 15 phút; giá đã gồm thuế; được trả bằng cả tiền mặt và QR; lệch tiền ca trên 50.000đ phải ghi chú; khách nhận hoá đơn qua QR hoặc email |
+| 12 | **Không dùng kế toán.** Mọi thống kê và kiểm toán do hệ thống tự làm. Chủ chuỗi tự nhập thông tin thuế của từng chi nhánh (mã số thuế, ký hiệu hoá đơn, thuế suất) trong trang quản trị. Hệ thống hỗ trợ cả hai trường hợp: 5 chi nhánh chung một mã số thuế, hoặc mỗi chi nhánh một mã riêng |
+| 13 | **Máy chủ miễn phí, tự dựng**: Oracle Cloud Always Free + Cloudflare + Cloudflare R2 (xem mục 2) |
 
 ## 4. Các giai đoạn
 
@@ -67,9 +70,15 @@ Quy mô: **5 chi nhánh** và **1 kho tổng** quản lý nguyên vật liệu.
   - Muốn gửi trực tiếp, doanh nghiệp phải đăng ký và được cơ quan thuế chấp thuận, đồng thời hệ thống phải đáp ứng yêu cầu kỹ thuật của họ.
   - Nếu chưa được chấp thuận, vẫn phải gửi qua một đơn vị truyền nhận dữ liệu (T-VAN). Đây chỉ là bên chuyển dữ liệu, không phải nhà cung cấp phần mềm hoá đơn.
   - Phần mềm được thiết kế để đổi giữa hai cách gửi mà không ảnh hưởng phần còn lại.
-  - **Cần kế toán hoặc cơ quan thuế xác nhận trước khi làm phần gửi dữ liệu:** quán thuộc diện hoá đơn nào, định dạng dữ liệu, có cần chữ ký số không. Nếu cần chữ ký số, phải có chứng thư số dùng được trên máy chủ (ví dụ ký số từ xa).
-- **Thuế:** mã số thuế, ký hiệu hoá đơn và thuế suất của từng chi nhánh, và giá bán đã gồm thuế hay chưa, cần kế toán xác nhận.
+  - **Cách xử lý đã chốt:** phần gửi dữ liệu tới cơ quan thuế có công tắc trong trang quản trị, **mặc định là TẮT**. Khi tắt, hệ thống vẫn cấp số, lưu và cho khách tra cứu hoá đơn đầy đủ, chỉ không gửi đi. Chủ chuỗi bật công tắc sau khi đã đăng ký với cơ quan thuế.
+  - **Chủ chuỗi cần lưu ý:** trong thời gian công tắc còn tắt, hoá đơn chỉ là chứng từ nội bộ và **chưa có giá trị pháp lý**. Việc đăng ký sử dụng hoá đơn điện tử với cơ quan thuế (và chứng thư số, nếu được yêu cầu) là thủ tục chủ doanh nghiệp phải tự làm. Hệ thống không làm thay được.
 - **iPad và Safari:** POS chạy như ứng dụng web nên không cần đưa lên App Store. Cần kiểm tra trên Safari thật: giữ màn hình luôn sáng, âm báo, bàn phím ảo che ô nhập.
+- **Máy chủ miễn phí:**
+  - Oracle có thể đổi điều khoản (tháng 6/2026 đã giảm một nửa hạn mức). Cách phòng: toàn bộ chạy bằng Docker Compose và được sao lưu hằng đêm, nên có thể chuyển sang máy chủ thuê (khoảng 100–200 nghìn đồng/tháng) trong khoảng 1 giờ.
+  - Oracle có thể thu hồi máy "nhàn rỗi". Cách phòng: nâng tài khoản lên Pay-As-You-Go (vẫn 0đ trong hạn mức miễn phí) và đặt cảnh báo chi phí. Cần kiểm tra lại điều này trên trang của Oracle khi tạo tài khoản.
+  - Vùng Singapore có thể hết máy ARM. Khi đó thử lại vào giờ khác.
+  - Không có cam kết thời gian hoạt động, nên cần trang theo dõi và cảnh báo khi máy chủ ngừng.
+  - Cần thẻ ngân hàng để xác minh tài khoản Oracle và Cloudflare.
 - **Mạng:** mỗi chi nhánh cần 4G dự phòng. Chế độ chạy khi mất mạng để ở giai đoạn 4.
 - **Xác nhận chuyển khoản:** giai đoạn 1 thu ngân bấm "Đã nhận tiền" bằng tay.
 
