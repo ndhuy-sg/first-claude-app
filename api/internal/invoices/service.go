@@ -139,7 +139,8 @@ type line struct {
 func insert(ctx context.Context, q *store.Queries, now time.Time, h header, lines []line) (*Issued, error) {
 	series, err := q.InvLockInvoiceSeries(ctx, h.branchID)
 	if err != nil {
-		return nil, fmt.Errorf("invoice series of branch %d: %v", h.branchID, err) // not a 404: server misconfiguration
+		// %v on purpose: wrapping pgx.ErrNoRows would turn this server misconfiguration into a 404.
+		return nil, fmt.Errorf("invoice series of branch %d: %v", h.branchID, err) //nolint:errorlint
 	}
 	if err := q.InvBumpInvoiceSeries(ctx, h.branchID); err != nil {
 		return nil, err

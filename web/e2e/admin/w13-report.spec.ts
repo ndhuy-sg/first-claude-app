@@ -16,7 +16,7 @@ test("W-13 report filters by date range and branch and matches the API", async (
   const to = todayVN();
   const from = `${to.slice(0, 8)}01`; // first day of this month
 
-  await page.getByLabel("Chi nhánh").selectOption(String(cn1.id));
+  await page.getByRole("combobox", { name: "Chi nhánh", exact: true }).selectOption(String(cn1.id));
   await page.getByLabel("Từ ngày").fill(from);
   await page.getByLabel("Đến ngày").fill(to);
 
@@ -27,7 +27,7 @@ test("W-13 report filters by date range and branch and matches the API", async (
   await expect(ordersTile).toContainText(String(api.totals.orderCount));
 
   // whole chain = sum of branches (R-02) as shown in the comparison table
-  await page.getByLabel("Chi nhánh").selectOption("all");
+  await page.getByRole("combobox", { name: "Chi nhánh", exact: true }).selectOption("all");
   const chain = (await (await page.request.get(`/api/v1/reports/sales?from=${from}&to=${to}&groupBy=day`)).json()) as Report;
   await expect(page.getByRole("group", { name: "Doanh thu", exact: true })).toContainText(formatVND(chain.totals.revenue));
   await expect(page.getByRole("table", { name: "So sánh chi nhánh" })).toContainText("CN1");

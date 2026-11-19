@@ -8,7 +8,7 @@ import { parseScope, scopeOptions, type Scope } from "@/lib/admin/scope";
 export function ScopeSelect({
   value,
   onChange,
-  id = "scope",
+  id,
   allowAll = true,
 }: {
   value: Scope;
