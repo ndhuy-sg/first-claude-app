@@ -89,3 +89,9 @@ npm run build
 | pc1 | PIN 4321 | Pha chế | CN1 |
 | ql2 | ql2@moc.vn / matkhau123, PIN 8888 | Quản lý chi nhánh | CN2 |
 | tn2 | PIN 5678 | Thu ngân | CN2 |
+
+## Merge rule (owner decision)
+Nothing is merged into `claude/init-t81sv3` unless, after the merge, ALL checks pass on the merged tree:
+`cd api && go vet ./... && test -z "$(gofmt -l .)" && go test ./...` and
+`cd web && npm run lint && npm run typecheck && npm test && npm run build`.
+A branch whose tests fail is sent back to its author to fix; it is never merged "to fix later".
