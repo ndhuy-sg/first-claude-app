@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ndhuy-sg/first-claude-app/api/internal/auth"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/orders"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/store"
 )
@@ -44,7 +45,7 @@ func NewRouter(d *platform.Deps) *gin.Engine {
 	// ---- Module registrations: each module adds exactly one line below. ----
 	// authmod.Register(api, d)
 	// menu.Register(api, d)
-	// orders.Register(api, d)
+	orders.Register(api, d)
 	// payments.Register(api, d)
 	// shifts.Register(api, d)
 	// invoices.Register(api, d)
