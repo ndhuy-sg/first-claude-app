@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"github.com/ndhuy-sg/first-claude-app/api/internal/orderview"
 	"testing"
 
 	"github.com/ndhuy-sg/first-claude-app/api/internal/testutil"
@@ -15,5 +16,18 @@ func TestHealthzAndSeed(t *testing.T) {
 	var n int
 	if err := env.Pool.QueryRow(t.Context(), "SELECT count(*) FROM products").Scan(&n); err != nil || n != 18 {
 		t.Fatalf("products = %d, err %v", n, err)
+	}
+}
+
+func TestFixtureHelpersAndOrderView(t *testing.T) {
+	env := testutil.NewEnv(t)
+	shift := env.OpenShiftCN1()
+	id := env.InsertBan5Order(shift)
+	o, err := orderview.Load(t.Context(), env.Queries, "http://x", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.Total != 128_000 || len(o.Items) != 2 || o.Code != "CN1-20261119-0001" || o.Status != "open" {
+		t.Fatalf("unexpected order: %+v", o)
 	}
 }
