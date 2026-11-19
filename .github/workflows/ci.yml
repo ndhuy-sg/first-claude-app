@@ -1,0 +1,219 @@
+# CI for Mộc POS (docs/ARCHITECTURE.md §12): lint → Go tests → web tests → full-flow e2e →
+# multi-arch images pushed to GitHub Container Registry (main only).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  GOLANGCI_LINT_VERSION: v2.15.0
+  SQLC_VERSION: 1.31.1
+  NODE_VERSION: "22"
+
+jobs:
+  api:
+    name: API (Go)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://postgres@localhost:5432/postgres?sslmode=disable
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+
+      - name: Raise max_connections (tests create one database per test, in parallel)
+        working-directory: .
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -c "ALTER SYSTEM SET max_connections = 300" -c "ALTER SYSTEM SET fsync = off"
+          docker restart ${{ job.services.postgres.id }}
+          for i in $(seq 1 30); do docker exec ${{ job.services.postgres.id }} pg_isready -U postgres && break; sleep 1; done
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "Run gofmt on:"; echo "$unformatted"; exit 1; fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint (N-04)
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: api
+
+      - name: Install sqlc
+        uses: sqlc-dev/setup-sqlc@v4
+        with:
+          sqlc-version: ${{ env.SQLC_VERSION }}
+
+      - name: sqlc diff (generated code is up to date)
+        run: sqlc diff
+
+      - name: go test (race)
+        run: go test -race -count=1 ./...
+
+  web:
+    name: Web (Next.js)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: API types are generated from api/openapi.yaml
+        run: |
+          npm run gen:api
+          git diff --exit-code -- lib/api/schema.d.ts || (echo "Run: cd web && npm run gen:api" && exit 1)
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  e2e:
+    name: E2E (Playwright, Chromium + WebKit)
+    needs: [api, web]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CI: "1"
+      TEST_DATABASE_URL: postgres://postgres@localhost:5432/postgres?sslmode=disable
+      MOCPOS_BIN: ${{ github.workspace }}/api/bin/mocpos
+      E2E_WEB_MODE: prod
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build API
+        working-directory: api
+        run: go build -o bin/mocpos ./cmd/mocpos
+
+      - name: psql client
+        run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+
+      - name: Install web dependencies and build (standalone, /api → localhost:8080)
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium webkit
+
+      # playwright.config.ts starts both servers: e2e/support/start-stack.sh (fresh DB, migrate,
+      # seed, mocpos serve + worker on :8080) and e2e/support/start-web.sh (Next.js on :3000).
+      - name: Playwright (tablet-1180, tablet-1280, desktop-1280, webkit-ipad, api)
+        working-directory: web
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
+
+  images:
+    name: Images (linux/arm64 + amd64 → GHCR)
+    needs: [api, web, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mocpos-api
+            context: api
+            file: api/Dockerfile
+          - name: mocpos-web
+            context: web
+            file: web/Dockerfile
+          - name: mocpos-postgres
+            context: .
+            file: deploy/postgres/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image name (GHCR needs lower case)
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.img.outputs.name }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/arm64,linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
