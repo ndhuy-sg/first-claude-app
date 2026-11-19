@@ -6,6 +6,7 @@ Quy trình làm việc: **lập kế hoạch → thiết kế UI/UX và kiến t
 
 - Thiết kế UI/UX và sơ đồ kiến trúc (canvas): https://claude.ai/artifact/Ni5jcUueZ2vxKKy1vD6rws
 - Kiến trúc chi tiết: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)
+- Danh sách 37 màn hình: [`docs/SCREENS.md`](SCREENS.md)
 
 ## 1. Phạm vi
 

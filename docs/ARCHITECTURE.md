@@ -123,6 +123,45 @@ api/
   - Nâng tài khoản lên Pay-As-You-Go để tránh bị thu hồi máy "nhàn rỗi", và đặt cảnh báo chi phí.
 - **Docker Compose** gồm `cloudflared`, `web`, `api`, `worker`, `postgres`. Mọi image đều build được cho ARM64.
 - **Cloudflare gói Free:** quản lý tên miền, HTTPS và tường lửa. `cloudflared` chia đường dẫn: `/` vào `web`, `/api/*` vào `api`. Máy chủ chỉ mở cổng SSH cho quản trị, chỉ cho phép từ IP được chỉ định.
-- **Sao lưu:** `pg_dump` hằng đêm, mã hoá rồi đẩy lên Cloudflare R2, giữ 30 ngày. Mỗi tháng thử khôi phục một lần.
+- **Sao lưu:** mỗi đêm sao lưu đầy đủ, đồng thời ghi liên tục nhật ký thay đổi của PostgreSQL (WAL) lên Cloudflare R2. Mọi bản sao lưu đều được mã hoá và giữ 30 ngày. Mỗi tháng thử khôi phục một lần.
+  - Nếu máy chủ hỏng, mất tối đa khoảng 5 phút dữ liệu.
+  - Dựng lại hệ thống trên máy mới mất khoảng 1 giờ.
 - **Chuyển máy chủ khi cần:** dựng Docker Compose trên máy mới, khôi phục bản sao lưu mới nhất, chuyển tunnel sang máy mới. Mục tiêu dưới 1 giờ.
 - **Giám sát:** log có cấu trúc (`slog`), endpoint `/healthz`, dịch vụ theo dõi miễn phí gọi vào định kỳ và cảnh báo khi máy chủ ngừng hoặc hàng chờ hoá đơn bị dồn.
+
+## 9. Lớp HTTP (middleware)
+Thứ tự xử lý một yêu cầu: gắn mã yêu cầu → ghi log → bắt lỗi (không để máy chủ sập) → kiểm tra phiên đăng nhập → kiểm tra máy POS → lọc theo chi nhánh → phân quyền theo vai trò → chống ghi trùng (`Idempotency-Key`) → kiểm tra `Origin` → handler.
+
+## 10. Trạng thái
+| Đối tượng | Trạng thái |
+|---|---|
+| Đơn hàng | Đang mở → Đã thanh toán → Đã hoàn tiền; hoặc Đang mở → Đã huỷ / Đã gộp |
+| Thanh toán QR | Chờ khách chuyển → Đã nhận tiền; hoặc Đã huỷ |
+| Hoá đơn | Đã cấp số → Chưa gửi (công tắc tắt) → Đang gửi → Đã gửi cơ quan thuế; nếu lỗi: thử lại → thất bại; hoàn tiền: huỷ / điều chỉnh |
+| Phiếu chuyển kho | Yêu cầu → Đã duyệt → Đã xuất (trừ kho tổng) → Đã nhận (cộng kho chi nhánh); hoặc Từ chối |
+| Ca làm | Đang mở → Đã chốt |
+| Kiểm kê | Nháp → Đã gửi → Tự duyệt (lệch dưới 5%) hoặc Chờ duyệt → Đã duyệt |
+
+**Thanh toán một đơn nằm trong một giao dịch duy nhất**, gồm các bước theo thứ tự:
+1. Khoá đơn.
+2. Tính lại giá.
+3. Ghi khoản thanh toán, có kiểm tra chống trùng.
+4. Đổi trạng thái đơn.
+5. Cấp số hoá đơn (khoá dãy số của chi nhánh).
+6. Tạo hoá đơn.
+7. Trừ kho theo công thức (giai đoạn 2).
+8. Ghi nhật ký.
+9. Thêm việc "gửi hoá đơn" vào hàng chờ.
+
+## 11. Phân quyền
+Ma trận đầy đủ nằm ở khung "Ma trận phân quyền" trên canvas. Có 5 vai trò: chủ chuỗi, quản lý kho tổng, quản lý chi nhánh, thu ngân, pha chế. Máy chủ kiểm tra quyền ở mọi API; giao diện chỉ ẩn những nút người dùng không được bấm.
+
+## 12. Đưa code lên máy chủ
+- **GitHub Actions** (gói miễn phí) chạy lần lượt: lint, test Go, test giao diện, test toàn luồng, build image ARM64, đẩy lên GitHub Container Registry.
+- **Triển khai:** chạy thay đổi cấu trúc bảng trước, rồi khởi động lại từng dịch vụ. Giữ image bản trước để quay lại khi cần.
+- Không triển khai trong giờ cao điểm (06:30–09:00).
+
+## 13. Mục tiêu hiệu năng
+- 95% yêu cầu hoàn thành dưới 200 ms khi có 50 máy POS hoạt động cùng lúc.
+- Mở màn hình bán hàng dưới 3 giây trên iPad.
+- Báo cáo 30 ngày của toàn chuỗi hiện ra dưới 2 giây.
