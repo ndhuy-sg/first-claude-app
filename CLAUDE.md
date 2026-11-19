@@ -18,6 +18,10 @@ cd api && ~/go/bin/sqlc generate                # after editing api/queries/*.sq
 cd web && npm test                              # Vitest; single: npx vitest run lib/format.test.ts
 cd web && npm run gen:api                       # after editing api/openapi.yaml
 cd web && npm run lint && npm run typecheck && npm run build
+cd web && E2E_WEB_MODE=prod npx playwright test --trace off   # e2e (after npm run build); starts API on :8080 + web on :3000
+pkill -f next-server; pkill -f "bin/mocpos"     # stale e2e servers are reused silently: kill them first
+cd api && golangci-lint run ./...               # needs golangci-lint built with Go >= 1.26
+k6 run load/k6/pos.js                           # load test; deployment: docs/DEPLOY.md
 ```
 
 ## Architecture in one paragraph
