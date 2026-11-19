@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatDate, formatTime, formatVND } from "@/lib/format";
 import { allBranches, ownerMe, ql1Me } from "./fixtures";
 import { formatVatRate, invoiceStatus } from "./labels";
-import { homeFor, isActive, visibleNav } from "./nav";
+import { alertHref, homeFor, isActive, visibleNav } from "./nav";
 import { can, isAdminRole } from "./permissions";
 import { addDays, average, buildSalesQuery, daysBetween, longDate, percent, shortDate } from "./reports";
 import { defaultScope, parseScope, scopeOptions, scopeToBranchId } from "./scope";
@@ -76,6 +76,12 @@ describe("navigation and permissions", () => {
     expect(homeFor("owner")).toBe("/admin");
     const items = visibleNav("owner").flatMap((g) => g.items);
     expect(items.find((i) => i.label === "Tồn kho")?.phase).toBe("GĐ2");
+  });
+  it("dashboard alert links", () => {
+    expect(alertHref("/admin/hoa-don?status=failed")).toBe("/admin/hoa-don?status=failed");
+    expect(alertHref("/admin/ca/12")).toBe("/admin/don-hang?shiftId=12");
+    expect(alertHref("https://evil.example")).toBeNull();
+    expect(alertHref(null)).toBeNull();
   });
   it("active link matching", () => {
     expect(isActive("/admin", "/admin")).toBe(true);

@@ -7,6 +7,7 @@ import { Chip } from "@/components/ui/Chip";
 import { api, unwrap } from "@/lib/api/client";
 import { errorMessage, retryServerErrors, useScope } from "@/lib/admin/hooks";
 import { alertTone } from "@/lib/admin/labels";
+import { alertHref } from "@/lib/admin/nav";
 import { longDate } from "@/lib/admin/reports";
 import { scopeToBranchId } from "@/lib/admin/scope";
 import { formatVND, todayVN } from "@/lib/format";
@@ -68,10 +69,10 @@ export function Dashboard() {
                       <Chip tone={alertTone[a.severity].tone}>{alertTone[a.severity].label}</Chip>
                       <span className="min-w-0 flex-1">
                         {a.message}
-                        {a.link && (
+                        {alertHref(a.link) && (
                           <>
                             {" "}
-                            <Link href={a.link} className="font-semibold text-navy underline">
+                            <Link href={alertHref(a.link)!} className="font-semibold text-navy underline">
                               Xem
                             </Link>
                           </>

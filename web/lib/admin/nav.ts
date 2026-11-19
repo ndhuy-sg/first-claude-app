@@ -62,6 +62,17 @@ export function isActive(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+/**
+ * Where a dashboard alert link should go. Phase 1 has no admin shift page, so
+ * "/admin/ca/{shiftId}" opens the orders of that shift. Links outside /admin are not followed.
+ */
+export function alertHref(link: string | null): string | null {
+  if (!link || !link.startsWith("/admin")) return null;
+  const shift = /^\/admin\/ca\/(\d+)\/?$/.exec(link);
+  if (shift) return `/admin/don-hang?shiftId=${shift[1]}`;
+  return link;
+}
+
 /** First page a role can open after login. */
 export function homeFor(role: Role): string {
   for (const g of visibleNav(role)) for (const i of g.items) if (!i.phase) return i.href;
