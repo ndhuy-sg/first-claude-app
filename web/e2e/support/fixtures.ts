@@ -53,7 +53,7 @@ export async function ownerLoginUi(page: Page) {
   await page.getByLabel("Email").fill(ACCOUNTS.owner.email);
   await page.getByLabel("Mật khẩu").fill(ACCOUNTS.owner.password);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
-  await expect(page).not.toHaveURL(new RegExp(escapeRe(ROUTES.adminLogin) + "$"));
+  await expect(page.getByRole("navigation", { name: "Quản trị" })).toBeVisible();
 }
 
 /** A table tile on the floor plan, e.g. "Bàn 5" (not "Bàn 50"). Tiles may be links or buttons. */

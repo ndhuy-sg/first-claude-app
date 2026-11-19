@@ -11,7 +11,7 @@ import { defineConfig, devices, webkit } from "@playwright/test";
  * Projects (test-case section W/F/N):
  *   tablet-1180   Chromium, iPad landscape 1180×820, touch   → POS specs + full flows
  *   tablet-1280   Chromium, Android landscape 1280×800, touch → POS specs
- *   desktop-1280  Chromium desktop 1280×800                  → admin specs
+ *   desktop-1280  Chromium desktop 1280×800                  → admin specs + public invoice lookup
  *   webkit-ipad   WebKit (Safari engine) 1180×820, touch     → POS specs + full flows; only when the
  *                 WebKit browser is installed (CI: npx playwright install --with-deps webkit chromium)
  *   api           no browser: API-level checks (N-03)
@@ -75,7 +75,7 @@ export default defineConfig({
     },
     {
       name: "desktop-1280",
-      testMatch: ["admin/**/*.spec.ts"],
+      testMatch: ["admin/**/*.spec.ts", "lookup.spec.ts"], // lookup.spec.ts sets its own phone viewport
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
     },
     ...(webkitInstalled
