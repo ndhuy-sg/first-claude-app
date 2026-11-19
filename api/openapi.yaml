@@ -1,0 +1,1145 @@
+openapi: 3.1.0
+info:
+  title: Mộc POS API
+  version: 1.0.0
+  description: |
+    API of the Mộc POS (phase 1: chain foundation and sales).
+
+    Conventions
+    - Base path /api/v1. JSON only. Money is integer VND. Times are RFC 3339 (UTC).
+      Business dates (YYYY-MM-DD) are in Asia/Ho_Chi_Minh.
+    - Auth: HttpOnly cookies. `moc_session` = user session (email+password or PIN).
+      `moc_device` = activated POS device (needed for PIN login and shift/sales endpoints).
+    - Every write (POST/PUT/PATCH/DELETE) must send an `Origin` header from an allowed origin (else 403 BAD_ORIGIN).
+    - Writes may send `Idempotency-Key`; a retry with the same key replays the first 2xx response.
+    - Errors: `{"error": {"code": "UPPER_SNAKE", "message": "Vietnamese text", "details": {...}}}`.
+      401 UNAUTHENTICATED, 403 FORBIDDEN, 404 NOT_FOUND (also used for other branches' data), 400 VALIDATION_ERROR, 409 conflicts.
+    - Branch scoping: branch-bound users always act on their own branch; `branchId` params are ignored for them.
+      Owner must pass `branchId` where a branch is required.
+    - Lists: `?page=1&pageSize=50` → `{ "items": [...], "total": n }`.
+servers:
+  - url: /api/v1
+
+tags:
+  - name: auth
+  - name: menu
+  - name: branches
+  - name: shifts
+  - name: orders
+  - name: payments
+  - name: invoices
+  - name: reports
+  - name: system
+
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      operationId: healthz
+      security: []
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { status: { type: string } } } } } }
+
+  # ---------------- auth ----------------
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Email + password login (managers, owner). Sets moc_session.
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/LoginRequest" } } }
+      responses:
+        "200": { description: Logged in, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        "401": { $ref: "#/components/responses/Error" }   # INVALID_CREDENTIALS (details.remainingAttempts)
+        "423": { $ref: "#/components/responses/Error" }   # ACCOUNT_LOCKED (details.lockedUntil)
+  /auth/pin:
+    post:
+      tags: [auth]
+      operationId: pinLogin
+      summary: PIN login on an activated device (moc_device). Only staff of the device's branch. Sets moc_session.
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PinLoginRequest" } } }
+      responses:
+        "200": { description: Logged in, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        "401": { $ref: "#/components/responses/Error" }   # INVALID_PIN, DEVICE_REQUIRED
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      responses:
+        "204": { description: Logged out }
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: me
+      responses:
+        "200": { description: Current user, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /device:
+    get:
+      tags: [auth]
+      operationId: currentDevice
+      summary: The activated device (from moc_device) and the staff who may log in on it. No user session needed.
+      security: []
+      responses:
+        "200": { description: Device, content: { application/json: { schema: { $ref: "#/components/schemas/DeviceInfo" } } } }
+        "401": { $ref: "#/components/responses/Error" }   # DEVICE_REQUIRED
+  /devices/activate:
+    post:
+      tags: [auth]
+      operationId: activateDevice
+      summary: A manager activates this tablet for a branch. Sets moc_device (400 days) and a password session.
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ActivateDeviceRequest" } } }
+      responses:
+        "201": { description: Activated, content: { application/json: { schema: { $ref: "#/components/schemas/DeviceInfo" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /devices:
+    get:
+      tags: [auth]
+      operationId: listDevices
+      parameters: [{ $ref: "#/components/parameters/BranchId" }]
+      responses:
+        "200": { description: Devices, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Device" } } } } }
+  /devices/{id}/revoke:
+    post:
+      tags: [auth]
+      operationId: revokeDevice
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "204": { description: Revoked }
+
+  # ---------------- users ----------------
+  /users:
+    get:
+      tags: [auth]
+      operationId: listUsers
+      parameters: [{ $ref: "#/components/parameters/BranchId" }]
+      responses:
+        "200": { description: Users, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/User" } } } } }
+    post:
+      tags: [auth]
+      operationId: createUser
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/UserInput" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "409": { $ref: "#/components/responses/Error" }   # PIN_TAKEN, EMAIL_TAKEN
+  /users/{id}:
+    put:
+      tags: [auth]
+      operationId: updateUser
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/UserInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+  /users/{id}/lock:
+    post:
+      tags: [auth]
+      operationId: lockUser
+      summary: Disable the account and revoke its sessions immediately (event user.locked).
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "204": { description: Locked }
+  /users/{id}/unlock:
+    post:
+      tags: [auth]
+      operationId: unlockUser
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "204": { description: Unlocked }
+  /users/{id}/reset-pin:
+    post:
+      tags: [auth]
+      operationId: resetPin
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [pin], properties: { pin: { type: string, pattern: "^[0-9]{4,6}$" } } } } }
+      responses:
+        "204": { description: PIN reset, must change at next login }
+
+  # ---------------- settings / branches / tables ----------------
+  /settings:
+    get:
+      tags: [branches]
+      operationId: getSettings
+      responses:
+        "200": { description: Settings, content: { application/json: { schema: { $ref: "#/components/schemas/Settings" } } } }
+    put:
+      tags: [branches]
+      operationId: updateSettings
+      summary: Owner only.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Settings" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Settings" } } } }
+  /branches:
+    get:
+      tags: [branches]
+      operationId: listBranches
+      summary: Owner sees all; branch-bound users see their own branch only.
+      responses:
+        "200": { description: Branches, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Branch" } } } } }
+    post:
+      tags: [branches]
+      operationId: createBranch
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/BranchInput" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Branch" } } } }
+  /branches/{id}:
+    put:
+      tags: [branches]
+      operationId: updateBranch
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/BranchInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Branch" } } } }
+  /areas:
+    post:
+      tags: [branches]
+      operationId: createArea
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [name], properties: { branchId: { type: integer, format: int64 }, name: { type: string } } } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Area" } } } }
+  /tables:
+    get:
+      tags: [branches]
+      operationId: listTables
+      summary: Floor plan of a branch with each table's live status and open order.
+      parameters: [{ $ref: "#/components/parameters/BranchId" }]
+      responses:
+        "200": { description: Areas with tables, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Area" } } } } }
+    post:
+      tags: [branches]
+      operationId: createTable
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [areaId, name], properties: { areaId: { type: integer, format: int64 }, name: { type: string } } } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Table" } } } }
+
+  # ---------------- menu ----------------
+  /menu:
+    get:
+      tags: [menu]
+      operationId: getMenu
+      summary: Active menu with sold-out flags for the branch (POS).
+      parameters: [{ $ref: "#/components/parameters/BranchId" }]
+      responses:
+        "200": { description: Menu, content: { application/json: { schema: { $ref: "#/components/schemas/Menu" } } } }
+  /categories:
+    post:
+      tags: [menu]
+      operationId: createCategory
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CategoryInput" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Category" } } } }
+  /categories/{id}:
+    put:
+      tags: [menu]
+      operationId: updateCategory
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CategoryInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Category" } } } }
+  /products:
+    get:
+      tags: [menu]
+      operationId: listProducts
+      summary: Admin list including hidden products.
+      responses:
+        "200": { description: Products, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Product" } } } } }
+    post:
+      tags: [menu]
+      operationId: createProduct
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ProductInput" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Product" } } } }
+        "409": { $ref: "#/components/responses/Error" }   # PRODUCT_NAME_TAKEN
+  /products/{id}:
+    put:
+      tags: [menu]
+      operationId: updateProduct
+      summary: Replaces name, price, sizes and modifiers. Price changes are audited; open orders keep their snapshot price.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ProductInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Product" } } } }
+  /branches/{branchId}/sold-out/{productId}:
+    put:
+      tags: [menu]
+      operationId: setSoldOut
+      summary: Toggle sold-out for one branch (event product.sold_out).
+      parameters:
+        - { name: branchId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: productId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [soldOut], properties: { soldOut: { type: boolean } } } } }
+      responses:
+        "204": { description: Updated }
+
+  # ---------------- shifts ----------------
+  /shifts/current:
+    get:
+      tags: [shifts]
+      operationId: currentShift
+      summary: Open shift of the current device, or null.
+      responses:
+        "200": { description: Shift or null, content: { application/json: { schema: { oneOf: [{ $ref: "#/components/schemas/Shift" }, { type: "null" }] } } } }
+  /shifts/open:
+    post:
+      tags: [shifts]
+      operationId: openShift
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [openingCash], properties: { openingCash: { type: integer, format: int64, minimum: 0 } } } } }
+      responses:
+        "201": { description: Opened, content: { application/json: { schema: { $ref: "#/components/schemas/Shift" } } } }
+        "409": { $ref: "#/components/responses/Error" }   # SHIFT_ALREADY_OPEN
+  /shifts/{id}/summary:
+    get:
+      tags: [shifts]
+      operationId: shiftSummary
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200": { description: Summary, content: { application/json: { schema: { $ref: "#/components/schemas/ShiftSummary" } } } }
+  /shifts/{id}/close:
+    post:
+      tags: [shifts]
+      operationId: closeShift
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [countedCash], properties: { countedCash: { type: integer, format: int64 }, note: { type: string } } } } }
+      responses:
+        "200": { description: Closed, content: { application/json: { schema: { $ref: "#/components/schemas/ShiftSummary" } } } }
+        "409": { $ref: "#/components/responses/Error" }   # OPEN_ORDERS (details.orders), SHIFT_CLOSED
+        "400": { $ref: "#/components/responses/Error" }   # NOTE_REQUIRED
+
+  # ---------------- orders ----------------
+  /orders:
+    get:
+      tags: [orders]
+      operationId: listOrders
+      parameters:
+        - { $ref: "#/components/parameters/BranchId" }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/OrderStatus" } }
+        - { name: date, in: query, schema: { type: string, format: date }, description: Business date (VN). Default today. }
+        - { name: shiftId, in: query, schema: { type: integer, format: int64 } }
+        - { name: q, in: query, schema: { type: string }, description: Search code / table name / amount }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PageSize" }
+      responses:
+        "200": { description: Orders, content: { application/json: { schema: { $ref: "#/components/schemas/OrderList" } } } }
+    post:
+      tags: [orders]
+      operationId: createOrder
+      summary: Needs an open shift on the device (409 NO_OPEN_SHIFT). Dine-in needs a free table (409 TABLE_OCCUPIED).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [type], properties: { type: { $ref: "#/components/schemas/OrderType" }, tableId: { type: integer, format: int64 } } } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+        "409": { $ref: "#/components/responses/Error" }
+  /orders/{id}:
+    get:
+      tags: [orders]
+      operationId: getOrder
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200": { description: Order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /orders/{id}/items:
+    post:
+      tags: [orders]
+      operationId: addOrderItem
+      summary: Server computes the price; any client price is ignored. 409 PRODUCT_SOLD_OUT, 400 INVALID_MODIFIER, 409 ORDER_NOT_OPEN.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/AddItemRequest" } } }
+      responses:
+        "201": { description: Updated order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+  /orders/{id}/items/{itemId}:
+    patch:
+      tags: [orders]
+      operationId: updateOrderItem
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { qty: { type: integer, minimum: 1 }, note: { type: string } } } } }
+      responses:
+        "200": { description: Updated order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+    delete:
+      tags: [orders]
+      operationId: deleteOrderItem
+      parameters:
+        - { $ref: "#/components/parameters/Id" }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200": { description: Updated order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+  /orders/{id}/discount:
+    post:
+      tags: [orders]
+      operationId: setDiscount
+      summary: Above settings.discountMaxPct needs managerId + managerPin (403 APPROVAL_REQUIRED / INVALID_MANAGER_PIN). value 0 removes the discount.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DiscountRequest" } } }
+      responses:
+        "200": { description: Updated order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+  /orders/{id}/buyer:
+    put:
+      tags: [orders]
+      operationId: setBuyer
+      summary: Buyer info for a company invoice. Empty body fields = retail customer (Khách lẻ). 400 INVALID_TAX_CODE.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Buyer" } } }
+      responses:
+        "200": { description: Updated order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+  /orders/{id}/move:
+    post:
+      tags: [orders]
+      operationId: moveOrder
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [tableId], properties: { tableId: { type: integer, format: int64 } } } } }
+      responses:
+        "200": { description: Updated order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+        "409": { $ref: "#/components/responses/Error" }   # TABLE_OCCUPIED
+  /orders/{id}/merge:
+    post:
+      tags: [orders]
+      operationId: mergeOrder
+      summary: Moves all items of {id} into targetOrderId. {id} becomes "merged" and its table is freed.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [targetOrderId], properties: { targetOrderId: { type: integer, format: int64 } } } } }
+      responses:
+        "200": { description: Target order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+  /orders/{id}/split:
+    post:
+      tags: [orders]
+      operationId: splitOrder
+      summary: Moves the given items to a new order on the same table (or takeaway).
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [itemIds], properties: { itemIds: { type: array, items: { type: integer, format: int64 }, minItems: 1 } } } } }
+      responses:
+        "200": { description: Both orders, content: { application/json: { schema: { type: object, required: [original, created], properties: { original: { $ref: "#/components/schemas/Order" }, created: { $ref: "#/components/schemas/Order" } } } } } }
+  /orders/{id}/cancel:
+    post:
+      tags: [orders]
+      operationId: cancelOrder
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 1 } } } } }
+      responses:
+        "200": { description: Cancelled order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+        "409": { $ref: "#/components/responses/Error" }   # ORDER_PAID
+
+  # ---------------- payments ----------------
+  /orders/{id}/payments:
+    post:
+      tags: [payments]
+      operationId: createPayment
+      summary: |
+        Cash: confirmed immediately (cashReceived ≥ amount, 400 INSUFFICIENT_CASH).
+        VietQR: created as pending with qrPayload; confirm with /payments/{id}/confirm.
+        When confirmed payments reach the order total, the order becomes paid and the invoice is issued
+        in the same transaction. 400 EMPTY_ORDER, 400 AMOUNT_EXCEEDS_DUE, 409 ORDER_NOT_OPEN.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PaymentRequest" } } }
+      responses:
+        "201": { description: Payment and updated order, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentResult" } } } }
+  /payments/{id}/confirm:
+    post:
+      tags: [payments]
+      operationId: confirmPayment
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200": { description: Payment and updated order, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentResult" } } } }
+  /payments/{id}/cancel:
+    post:
+      tags: [payments]
+      operationId: cancelPayment
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200": { description: Payment and order, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentResult" } } } }
+  /orders/{id}/refund:
+    post:
+      tags: [payments]
+      operationId: refundOrder
+      summary: Paid orders only. Manager, or cashier with managerId + managerPin. Issues a cancel invoice.
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RefundRequest" } } }
+      responses:
+        "200": { description: Refunded order, content: { application/json: { schema: { $ref: "#/components/schemas/Order" } } } }
+  /payments/cash-suggestions:
+    get:
+      tags: [payments]
+      operationId: cashSuggestions
+      parameters: [{ name: amount, in: query, required: true, schema: { type: integer, format: int64 } }]
+      responses:
+        "200": { description: Suggestions, content: { application/json: { schema: { type: array, items: { type: integer, format: int64 } } } } }
+
+  # ---------------- invoices ----------------
+  /invoices:
+    get:
+      tags: [invoices]
+      operationId: listInvoices
+      parameters:
+        - { $ref: "#/components/parameters/BranchId" }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/InvoiceStatus" } }
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PageSize" }
+      responses:
+        "200": { description: Invoices, content: { application/json: { schema: { $ref: "#/components/schemas/InvoiceList" } } } }
+  /invoices/{id}:
+    get:
+      tags: [invoices]
+      operationId: getInvoice
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "200": { description: Invoice, content: { application/json: { schema: { $ref: "#/components/schemas/Invoice" } } } }
+  /invoices/{id}/resend:
+    post:
+      tags: [invoices]
+      operationId: resendInvoice
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses:
+        "202": { description: Queued }
+  /invoices/{id}/email:
+    post:
+      tags: [invoices]
+      operationId: emailInvoice
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string, format: email } } } } }
+      responses:
+        "202": { description: Queued }
+  /public/invoices/{code}:
+    get:
+      tags: [invoices]
+      operationId: publicInvoice
+      summary: Customer lookup by code (no login). Unknown code → 404.
+      security: []
+      parameters: [{ name: code, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Invoice, content: { application/json: { schema: { $ref: "#/components/schemas/Invoice" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+
+  # ---------------- reports / audit / events ----------------
+  /reports/dashboard:
+    get:
+      tags: [reports]
+      operationId: dashboard
+      parameters:
+        - { $ref: "#/components/parameters/BranchId" }
+        - { name: date, in: query, schema: { type: string, format: date } }
+      responses:
+        "200": { description: Dashboard, content: { application/json: { schema: { $ref: "#/components/schemas/Dashboard" } } } }
+  /reports/sales:
+    get:
+      tags: [reports]
+      operationId: salesReport
+      summary: Paid orders only (excludes cancelled and refunded). Dates are VN business dates, inclusive.
+      parameters:
+        - { $ref: "#/components/parameters/BranchId" }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - { name: groupBy, in: query, required: true, schema: { type: string, enum: [day, product, hour, payment_method, staff, shift, branch] } }
+      responses:
+        "200": { description: Report, content: { application/json: { schema: { $ref: "#/components/schemas/SalesReport" } } } }
+  /audit-logs:
+    get:
+      tags: [reports]
+      operationId: listAuditLogs
+      parameters:
+        - { $ref: "#/components/parameters/BranchId" }
+        - { name: action, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PageSize" }
+      responses:
+        "200": { description: Audit logs, content: { application/json: { schema: { $ref: "#/components/schemas/AuditLogList" } } } }
+  /events:
+    get:
+      tags: [reports]
+      operationId: events
+      summary: |
+        Server-Sent Events stream for the caller's branch (owner: all). Event names:
+        order.updated, product.sold_out, user.locked, table.updated, invoice.updated, shift.closed.
+        data = JSON of platform.Event. Heartbeat comment every 25 s.
+      responses:
+        "200": { description: text/event-stream }
+
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: moc_session }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    BranchId: { name: branchId, in: query, schema: { type: integer, format: int64 }, description: Ignored for branch-bound users. }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    PageSize: { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+  responses:
+    Error:
+      description: Error
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorBody" } } }
+  schemas:
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+    Role: { type: string, enum: [owner, warehouse_manager, branch_manager, cashier, barista] }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties: { email: { type: string }, password: { type: string } }
+    PinLoginRequest:
+      type: object
+      required: [userId, pin]
+      properties: { userId: { type: integer, format: int64 }, pin: { type: string, pattern: "^[0-9]{4,6}$" } }
+    ActivateDeviceRequest:
+      type: object
+      required: [email, password, branchId, name]
+      properties: { email: { type: string }, password: { type: string }, branchId: { type: integer, format: int64 }, name: { type: string, minLength: 1 } }
+    UserSummary:
+      type: object
+      required: [id, name]
+      properties: { id: { type: integer, format: int64 }, name: { type: string } }
+    User:
+      type: object
+      required: [id, name, role, branchId, email, status, hasPin, lastActiveAt]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        email: { type: [string, "null"] }
+        role: { $ref: "#/components/schemas/Role" }
+        branchId: { type: [integer, "null"], format: int64 }
+        status: { type: string, enum: [active, disabled] }
+        hasPin: { type: boolean }
+        lastActiveAt: { type: [string, "null"], format: date-time }
+    UserInput:
+      type: object
+      required: [name, role]
+      properties:
+        name: { type: string, minLength: 1 }
+        email: { type: [string, "null"] }
+        password: { type: string, minLength: 8 }
+        pin: { type: string, pattern: "^[0-9]{4,6}$" }
+        role: { $ref: "#/components/schemas/Role" }
+        branchId: { type: [integer, "null"], format: int64 }
+    Settings:
+      type: object
+      required: [companyName, companyTaxCode, invoiceEmailFrom, taxSubmissionEnabled, taxGateway, discountMaxPct, posIdleLockMinutes, loginMaxFailures, loginLockMinutes, shiftNoteThreshold, pricesIncludeVat]
+      properties:
+        companyName: { type: string }
+        companyTaxCode: { type: string }
+        invoiceEmailFrom: { type: string }
+        taxSubmissionEnabled: { type: boolean }
+        taxGateway: { type: string, enum: ["off", direct, tvan, fake] }
+        discountMaxPct: { type: integer }
+        posIdleLockMinutes: { type: integer }
+        loginMaxFailures: { type: integer }
+        loginLockMinutes: { type: integer }
+        shiftNoteThreshold: { type: integer, format: int64 }
+        pricesIncludeVat: { type: boolean }
+    Me:
+      type: object
+      required: [user, device, settings]
+      properties:
+        user:
+          type: object
+          required: [id, name, role, branchId, pinMustChange]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+            role: { $ref: "#/components/schemas/Role" }
+            branchId: { type: [integer, "null"], format: int64 }
+            pinMustChange: { type: boolean }
+        device: { oneOf: [{ $ref: "#/components/schemas/Device" }, { type: "null" }] }
+        settings:
+          type: object
+          required: [discountMaxPct, posIdleLockMinutes]
+          properties: { discountMaxPct: { type: integer }, posIdleLockMinutes: { type: integer } }
+    Device:
+      type: object
+      required: [id, name, branchId, branchCode, lastSeenAt, revoked]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        branchId: { type: integer, format: int64 }
+        branchCode: { type: string }
+        lastSeenAt: { type: [string, "null"], format: date-time }
+        revoked: { type: boolean }
+    DeviceInfo:
+      type: object
+      required: [device, staff]
+      properties:
+        device: { $ref: "#/components/schemas/Device" }
+        staff:
+          type: array
+          description: Active staff of the device's branch who have a PIN.
+          items:
+            type: object
+            required: [id, name, role]
+            properties: { id: { type: integer, format: int64 }, name: { type: string }, role: { $ref: "#/components/schemas/Role" } }
+    Branch:
+      type: object
+      required: [id, code, name, address, openingHours, taxCode, vatRateBp, invoiceSymbol, nextInvoiceNumber, vietqr, isActive]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string }
+        name: { type: string }
+        address: { type: string }
+        openingHours: { type: string }
+        taxCode: { type: string, description: Empty = company tax code }
+        vatRateBp: { type: integer, description: "Basis points: 800 = 8%" }
+        invoiceSymbol: { type: string }
+        nextInvoiceNumber: { type: integer, format: int64 }
+        vietqr: { $ref: "#/components/schemas/VietQRAccount" }
+        isActive: { type: boolean }
+    BranchInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        address: { type: string }
+        openingHours: { type: string }
+        taxCode: { type: string }
+        vatRateBp: { type: integer }
+        invoiceSymbol: { type: string }
+        vietqr: { $ref: "#/components/schemas/VietQRAccount" }
+    VietQRAccount:
+      type: object
+      required: [bankBin, accountNo, accountName]
+      properties: { bankBin: { type: string }, accountNo: { type: string }, accountName: { type: string } }
+    Area:
+      type: object
+      required: [id, name, tables]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        tables: { type: array, items: { $ref: "#/components/schemas/Table" } }
+    Table:
+      type: object
+      required: [id, name, areaId, status, openOrder]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        areaId: { type: integer, format: int64 }
+        status: { type: string, enum: [free, occupied, awaiting_payment], description: "awaiting_payment = open order with a pending QR payment" }
+        openOrder:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [id, code, itemCount, total, createdAt]
+              properties:
+                id: { type: integer, format: int64 }
+                code: { type: string }
+                itemCount: { type: integer }
+                total: { type: integer, format: int64 }
+                createdAt: { type: string, format: date-time }
+    Menu:
+      type: object
+      required: [categories]
+      properties:
+        categories:
+          type: array
+          items:
+            type: object
+            required: [id, name, products]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+              products: { type: array, items: { $ref: "#/components/schemas/MenuProduct" } }
+    MenuProduct:
+      type: object
+      required: [id, name, description, basePrice, isFeatured, soldOut, sizes, modifiers]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        basePrice: { type: integer, format: int64 }
+        isFeatured: { type: boolean }
+        soldOut: { type: boolean }
+        sizes: { type: array, items: { $ref: "#/components/schemas/Size" } }
+        modifiers: { type: array, items: { $ref: "#/components/schemas/Modifier" } }
+    Size:
+      type: object
+      required: [code, name, priceDelta]
+      properties: { code: { type: string }, name: { type: string }, priceDelta: { type: integer, format: int64 } }
+    Modifier:
+      type: object
+      required: [id, name, price]
+      properties: { id: { type: integer, format: int64 }, name: { type: string }, price: { type: integer, format: int64 } }
+    Category:
+      type: object
+      required: [id, name, sortOrder]
+      properties: { id: { type: integer, format: int64 }, name: { type: string }, sortOrder: { type: integer } }
+    CategoryInput:
+      type: object
+      required: [name]
+      properties: { name: { type: string, minLength: 1 }, sortOrder: { type: integer } }
+    Product:
+      type: object
+      required: [id, categoryId, name, description, basePrice, isActive, isFeatured, sortOrder, sizes, modifiers, soldOutBranchIds]
+      properties:
+        id: { type: integer, format: int64 }
+        categoryId: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        basePrice: { type: integer, format: int64 }
+        isActive: { type: boolean }
+        isFeatured: { type: boolean }
+        sortOrder: { type: integer }
+        sizes: { type: array, items: { $ref: "#/components/schemas/Size" } }
+        modifiers: { type: array, items: { $ref: "#/components/schemas/Modifier" } }
+        soldOutBranchIds: { type: array, items: { type: integer, format: int64 } }
+    ProductInput:
+      type: object
+      required: [categoryId, name, basePrice]
+      properties:
+        categoryId: { type: integer, format: int64 }
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+        basePrice: { type: integer, format: int64, minimum: 0 }
+        isActive: { type: boolean, default: true }
+        isFeatured: { type: boolean }
+        sortOrder: { type: integer }
+        sizes: { type: array, items: { $ref: "#/components/schemas/Size" } }
+        modifiers:
+          type: array
+          items:
+            type: object
+            required: [name, price]
+            properties: { id: { type: integer, format: int64 }, name: { type: string }, price: { type: integer, format: int64, minimum: 0 } }
+    Shift:
+      type: object
+      required: [id, branchId, deviceId, status, openedBy, openedAt, openingCash]
+      properties:
+        id: { type: integer, format: int64 }
+        branchId: { type: integer, format: int64 }
+        deviceId: { type: integer, format: int64 }
+        status: { type: string, enum: [open, closed] }
+        openedBy: { $ref: "#/components/schemas/UserSummary" }
+        openedAt: { type: string, format: date-time }
+        openingCash: { type: integer, format: int64 }
+        closedAt: { type: [string, "null"], format: date-time }
+    ShiftSummary:
+      type: object
+      required: [shift, orderCount, revenue, cashSales, qrSales, cashRefunds, expectedCash, countedCash, cashDiff, openOrders, pendingQrPayments, invoicesNotSent]
+      properties:
+        shift: { $ref: "#/components/schemas/Shift" }
+        orderCount: { type: integer }
+        revenue: { type: integer, format: int64 }
+        cashSales: { type: integer, format: int64 }
+        qrSales: { type: integer, format: int64 }
+        cashRefunds: { type: integer, format: int64 }
+        expectedCash: { type: integer, format: int64, description: openingCash + cashSales − cashRefunds }
+        countedCash: { type: [integer, "null"], format: int64 }
+        cashDiff: { type: [integer, "null"], format: int64 }
+        note: { type: string }
+        openOrders: { type: integer }
+        pendingQrPayments: { type: integer }
+        invoicesNotSent: { type: integer }
+    OrderType: { type: string, enum: [dine_in, takeaway] }
+    OrderStatus: { type: string, enum: [open, paid, cancelled, merged, refunded] }
+    AddItemRequest:
+      type: object
+      required: [productId, qty]
+      properties:
+        productId: { type: integer, format: int64 }
+        sizeCode: { type: string, description: Required when the product has sizes }
+        modifierIds: { type: array, items: { type: integer, format: int64 } }
+        qty: { type: integer, minimum: 1 }
+        note: { type: string }
+        unitPrice: { type: integer, format: int64, description: Ignored by the server (test O-03) }
+    OrderItem:
+      type: object
+      required: [id, productId, name, sizeCode, sizeName, modifiers, qty, unitPrice, lineTotal, note]
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        name: { type: string }
+        sizeCode: { type: string }
+        sizeName: { type: string }
+        modifiers: { type: array, items: { $ref: "#/components/schemas/Modifier" } }
+        qty: { type: integer }
+        unitPrice: { type: integer, format: int64 }
+        lineTotal: { type: integer, format: int64 }
+        note: { type: string }
+    DiscountRequest:
+      type: object
+      required: [type, value, reason]
+      properties:
+        type: { type: string, enum: [percent, amount] }
+        value: { type: integer, format: int64, minimum: 0 }
+        reason: { type: string }
+        managerId: { type: integer, format: int64 }
+        managerPin: { type: string }
+    Buyer:
+      type: object
+      properties:
+        name: { type: string }
+        taxCode: { type: string, description: "10 digits or 10 digits + '-' + 3 digits" }
+        address: { type: string }
+        email: { type: string }
+    Order:
+      type: object
+      required: [id, code, branchId, type, tableId, tableName, status, items, subtotal, discount, total, paidAmount, payments, buyer, invoice, createdBy, createdAt, paidAt]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string, example: CN1-20261119-0042 }
+        branchId: { type: integer, format: int64 }
+        type: { $ref: "#/components/schemas/OrderType" }
+        tableId: { type: [integer, "null"], format: int64 }
+        tableName: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        items: { type: array, items: { $ref: "#/components/schemas/OrderItem" } }
+        subtotal: { type: integer, format: int64 }
+        discount:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [type, value, amount, reason, approvedBy]
+              properties:
+                type: { type: string, enum: [percent, amount] }
+                value: { type: integer, format: int64 }
+                amount: { type: integer, format: int64 }
+                reason: { type: string }
+                approvedBy: { oneOf: [{ $ref: "#/components/schemas/UserSummary" }, { type: "null" }] }
+        total: { type: integer, format: int64 }
+        paidAmount: { type: integer, format: int64, description: Sum of confirmed payments }
+        payments: { type: array, items: { $ref: "#/components/schemas/Payment" } }
+        buyer: { $ref: "#/components/schemas/Buyer" }
+        invoice: { oneOf: [{ $ref: "#/components/schemas/InvoiceSummary" }, { type: "null" }] }
+        createdBy: { $ref: "#/components/schemas/UserSummary" }
+        createdAt: { type: string, format: date-time }
+        paidAt: { type: [string, "null"], format: date-time }
+    OrderList:
+      type: object
+      required: [items, total]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Order" } }
+        total: { type: integer }
+    PaymentRequest:
+      type: object
+      required: [method, amount]
+      properties:
+        method: { type: string, enum: [cash, vietqr] }
+        amount: { type: integer, format: int64, minimum: 1, description: Portion of the order paid by this method }
+        cashReceived: { type: integer, format: int64, description: Required for cash }
+    Payment:
+      type: object
+      required: [id, method, status, amount, cashReceived, changeAmount, qrPayload, createdAt, confirmedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        method: { type: string, enum: [cash, vietqr] }
+        status: { type: string, enum: [pending, confirmed, cancelled] }
+        amount: { type: integer, format: int64 }
+        cashReceived: { type: [integer, "null"], format: int64 }
+        changeAmount: { type: [integer, "null"], format: int64 }
+        qrPayload: { type: string, description: EMVCo VietQR string to render as a QR code (vietqr only) }
+        createdAt: { type: string, format: date-time }
+        confirmedAt: { type: [string, "null"], format: date-time }
+    PaymentResult:
+      type: object
+      required: [payment, order]
+      properties:
+        payment: { $ref: "#/components/schemas/Payment" }
+        order: { $ref: "#/components/schemas/Order" }
+    RefundRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+        managerId: { type: integer, format: int64 }
+        managerPin: { type: string }
+    InvoiceStatus: { type: string, enum: [not_sent, sending, sent, failed] }
+    InvoiceSummary:
+      type: object
+      required: [id, symbol, number, lookupCode, lookupUrl, status, kind]
+      properties:
+        id: { type: integer, format: int64 }
+        symbol: { type: string }
+        number: { type: string, description: Zero-padded to 8 digits, e.g. "00000421" }
+        lookupCode: { type: string, example: 7K3P-9QXA }
+        lookupUrl: { type: string, description: "{PUBLIC_BASE_URL}/tra-cuu/{lookupCode}" }
+        status: { $ref: "#/components/schemas/InvoiceStatus" }
+        kind: { type: string, enum: [normal, cancel, adjust] }
+    Invoice:
+      allOf:
+        - $ref: "#/components/schemas/InvoiceSummary"
+        - type: object
+          required: [branchId, orderId, orderCode, seller, buyer, paymentMethod, lines, vatRateBp, amountBeforeVat, vatAmount, total, totalInWords, issuedAt, sentAt, cancelled]
+          properties:
+            branchId: { type: integer, format: int64 }
+            orderId: { type: integer, format: int64 }
+            orderCode: { type: string }
+            seller:
+              type: object
+              required: [name, taxCode, address]
+              properties: { name: { type: string }, taxCode: { type: string }, address: { type: string } }
+            buyer: { $ref: "#/components/schemas/Buyer" }
+            paymentMethod: { type: string }
+            lines:
+              type: array
+              items:
+                type: object
+                required: [lineNo, name, qty, unitPrice, amount]
+                properties:
+                  lineNo: { type: integer }
+                  name: { type: string }
+                  qty: { type: integer }
+                  unitPrice: { type: integer, format: int64 }
+                  amount: { type: integer, format: int64 }
+            vatRateBp: { type: integer }
+            amountBeforeVat: { type: integer, format: int64 }
+            vatAmount: { type: integer, format: int64 }
+            total: { type: integer, format: int64 }
+            totalInWords: { type: string, example: Một trăm hai mươi tám nghìn đồng }
+            issuedAt: { type: string, format: date-time }
+            sentAt: { type: [string, "null"], format: date-time }
+            cancelled: { type: boolean, description: True when a cancel invoice references this one }
+    InvoiceList:
+      type: object
+      required: [items, total, counts]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Invoice" } }
+        total: { type: integer }
+        counts:
+          type: object
+          required: [issuedToday, notSent, failed, cancelled]
+          properties: { issuedToday: { type: integer }, notSent: { type: integer }, failed: { type: integer }, cancelled: { type: integer } }
+    Dashboard:
+      type: object
+      required: [date, revenue, orderCount, avgOrderValue, invoicesIssued, byBranch, topProducts, alerts]
+      properties:
+        date: { type: string, format: date }
+        revenue: { type: integer, format: int64 }
+        orderCount: { type: integer }
+        avgOrderValue: { type: integer, format: int64 }
+        invoicesIssued: { type: integer }
+        byBranch:
+          type: array
+          items:
+            type: object
+            required: [branchId, branchCode, revenue, orderCount]
+            properties: { branchId: { type: integer, format: int64 }, branchCode: { type: string }, revenue: { type: integer, format: int64 }, orderCount: { type: integer } }
+        topProducts:
+          type: array
+          items:
+            type: object
+            required: [productId, name, qty, revenue]
+            properties: { productId: { type: integer, format: int64 }, name: { type: string }, qty: { type: integer }, revenue: { type: integer, format: int64 } }
+        alerts:
+          type: array
+          items:
+            type: object
+            required: [kind, severity, message, link]
+            properties:
+              kind: { type: string, example: tax_submission_off }
+              severity: { type: string, enum: [info, warning, critical] }
+              message: { type: string }
+              link: { type: [string, "null"] }
+    SalesReport:
+      type: object
+      required: [from, to, groupBy, totals, rows]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        groupBy: { type: string }
+        totals:
+          type: object
+          required: [revenue, orderCount, discount, refunds]
+          properties:
+            revenue: { type: integer, format: int64 }
+            orderCount: { type: integer }
+            discount: { type: integer, format: int64 }
+            refunds: { type: integer, format: int64 }
+        rows:
+          type: array
+          items:
+            type: object
+            required: [key, label, revenue, orderCount, qty]
+            properties:
+              key: { type: string, description: "e.g. 2026-11-19, product id, 07 (hour), cash, user id, shift id, branch id" }
+              label: { type: string }
+              revenue: { type: integer, format: int64 }
+              orderCount: { type: integer }
+              qty: { type: integer, description: Items sold (product grouping) }
+    AuditLog:
+      type: object
+      required: [id, at, actor, approver, branchId, action, entityType, entityId, before, after, note]
+      properties:
+        id: { type: integer, format: int64 }
+        at: { type: string, format: date-time }
+        actor: { oneOf: [{ $ref: "#/components/schemas/UserSummary" }, { type: "null" }] }
+        approver: { oneOf: [{ $ref: "#/components/schemas/UserSummary" }, { type: "null" }] }
+        branchId: { type: [integer, "null"], format: int64 }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        before: {}
+        after: {}
+        note: { type: string }
+    AuditLogList:
+      type: object
+      required: [items, total]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AuditLog" } }
+        total: { type: integer }
+
+security:
+  - session: []

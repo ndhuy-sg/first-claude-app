@@ -1,0 +1,9 @@
+node_modules/
+.next/
+/api/bin/
+*.log
+.env
+.env.*
+!.env.example
+/web/test-results/
+/web/playwright-report/

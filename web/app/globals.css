@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* Mộc design tokens (navy / yellow / white). Use these via Tailwind classes:
+   bg-navy, text-ink, text-muted, border-line, bg-gold, text-gold, bg-surface, bg-ok-soft, ... */
+@theme {
+  --color-navy: #14213d;
+  --color-navy-2: #24345c;
+  --color-navy-3: #3a4a72;
+  --color-gold: #f5b700;
+  --color-gold-soft: #fff6d6;
+  --color-gold-line: #f5d46b;
+  --color-ink: #14213d;
+  --color-muted: #5b6478;
+  --color-line: #dde3ec;
+  --color-line-strong: #c9d2df;
+  --color-surface: #f5f7fa;
+  --color-subtle: #eef1f6;
+  --color-ok: #2f6b4f;
+  --color-ok-soft: #e4f1ea;
+  --color-bad: #a23b2a;
+  --color-bad-soft: #f8e1dc;
+
+  --font-sans: var(--font-be-vietnam), system-ui, sans-serif;
+  --font-display: var(--font-lora), Georgia, serif;
+}
+
+html,
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+/* Touch devices: no 300ms delay, no accidental text selection on buttons */
+button,
+a {
+  touch-action: manipulation;
+}
+:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 2px;
+}
