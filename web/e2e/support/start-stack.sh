@@ -43,5 +43,19 @@ echo "[e2e] migrate"; "$BIN" migrate
 echo "[e2e] seed";    "$BIN" seed
 
 export HTTP_ADDR=":$PORT" COOKIE_SECURE=false ALLOWED_ORIGINS="$ORIGIN" PUBLIC_BASE_URL="$ORIGIN"
+# Fake tax authority run by the F-03 spec (only used when settings enable submission).
+export TAX_GATEWAY_URL="${E2E_TAX_GATEWAY_URL:-http://localhost:${E2E_TAX_PORT:-18090}}"
+
+pids=()
+cleanup() { kill "${pids[@]}" 2>/dev/null || true; }
+trap cleanup EXIT INT TERM
+
+if [ "${E2E_START_WORKER:-1}" = "1" ]; then
+  echo "[e2e] worker"
+  "$BIN" worker & pids+=($!)
+fi
 echo "[e2e] serve on :$PORT (origin $ORIGIN)"
-exec "$BIN" serve
+"$BIN" serve & pids+=($!)
+# Exit (and stop the other process) as soon as either of them stops.
+wait -n
+
