@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HDon>
+  <DLHDon Id="MOC-INV-1">
+    <TTChung>
+      <PBan>2.1.0</PBan>
+      <THDon>HÓA ĐƠN GIÁ TRỊ GIA TĂNG</THDon>
+      <KHMSHDon>1</KHMSHDon>
+      <KHHDon>C26MAA</KHHDon>
+      <SHDon>1</SHDon>
+      <NLap>2026-11-19</NLap>
+      <DVTTe>VND</DVTTe>
+      <TGia>1</TGia>
+      <HTTToan>Tiền mặt</HTTToan>
+    </TTChung>
+    <NDHDon>
+      <NBan>
+        <Ten>Chuỗi cà phê Mộc</Ten>
+        <MST>0100000000</MST>
+        <DChi>Địa chỉ CN1</DChi>
+      </NBan>
+      <NMua>
+        <Ten>Khách lẻ</Ten>
+      </NMua>
+      <DSHHDVu>
+        <HHDVu>
+          <TChat>1</TChat>
+          <STT>1</STT>
+          <THHDVu>Cà phê sữa (L)</THHDVu>
+          <SLuong>2</SLuong>
+          <DGia>43000</DGia>
+          <ThTien>86000</ThTien>
+          <TSuat>8%</TSuat>
+        </HHDVu>
+        <HHDVu>
+          <TChat>1</TChat>
+          <STT>2</STT>
+          <THHDVu>Trà đào cam sả (M)</THHDVu>
+          <SLuong>1</SLuong>
+          <DGia>42000</DGia>
+          <ThTien>42000</ThTien>
+          <TSuat>8%</TSuat>
+        </HHDVu>
+      </DSHHDVu>
+      <TToan>
+        <THTTLTSuat>
+          <LTSuat>
+            <TSuat>8%</TSuat>
+            <ThTien>118519</ThTien>
+            <TThue>9481</TThue>
+          </LTSuat>
+        </THTTLTSuat>
+        <TgTCThue>118519</TgTCThue>
+        <TgTThue>9481</TgTThue>
+        <TgTTTBSo>128000</TgTTTBSo>
+        <TgTTTBChu>Một trăm hai mươi tám nghìn đồng</TgTTTBChu>
+      </TToan>
+    </NDHDon>
+  </DLHDon>
+</HDon>
