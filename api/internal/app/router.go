@@ -9,9 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ndhuy-sg/first-claude-app/api/internal/auditlog"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/auth"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/events"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/menu"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/reports"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/store"
 )
 
@@ -43,15 +46,15 @@ func NewRouter(d *platform.Deps) *gin.Engine {
 	api.Use(auth.Idempotency(d.Pool))
 
 	// ---- Module registrations: each module adds exactly one line below. ----
+	events.Register(api, d) // first: in tests it wraps d.Events with the SSE hub
 	// authmod.Register(api, d)
 	menu.Register(api, d)
 	// orders.Register(api, d)
 	// payments.Register(api, d)
 	// shifts.Register(api, d)
 	// invoices.Register(api, d)
-	// reports.Register(api, d)
-	// auditlog.Register(api, d)
-	// events.Register(api, d)
+	reports.Register(api, d)
+	auditlog.Register(api, d)
 
 	return r
 }
