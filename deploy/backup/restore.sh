@@ -43,6 +43,8 @@ chmod 0700 "$PGDATA"
   if [ -n "${RECOVERY_TARGET_TIME:-}" ]; then echo "recovery_target_time = '$RECOVERY_TARGET_TIME'"; fi
 } >> "$PGDATA/postgresql.auto.conf"
 touch "$PGDATA/recovery.signal"
+# Run as root (docker compose run --user root …)? Hand the files back to the postgres user.
+if [ "$(id -u)" = "0" ]; then chown -R postgres:postgres "$PGDATA"; fi
 
 log "done. Start the stack with: docker compose up -d   (postgres replays WAL first; watch: docker compose logs -f postgres)"
 # The restore_command line may stay in postgresql.auto.conf: it is only used during recovery.
