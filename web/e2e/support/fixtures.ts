@@ -70,7 +70,16 @@ export function productTile(page: Page, name: string) {
 
 /** Adds a product through the item dialog: optional size and modifiers, then "Thêm vào đơn · …". */
 export async function addProduct(page: Page, name: string, opts: { size?: string; modifiers?: string[] } = {}) {
-  await productTile(page, name).click();
+  const tile = productTile(page, name);
+  // The grid shows one category at a time: open the category tabs until the tile appears.
+  if (!(await tile.isVisible())) {
+    for (const cat of ["Cà phê", "Trà", "Đá xay", "Bánh"]) {
+      const tab = page.getByRole("button", { name: cat, exact: true });
+      if (await tab.count()) await tab.first().click();
+      if (await tile.isVisible()) break;
+    }
+  }
+  await tile.click();
   const dialog = page.getByRole("dialog");
   const addBtn = dialog.getByRole("button", { name: /^Thêm vào đơn/ });
   // Products without sizes/options may be added straight away without a dialog.

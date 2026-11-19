@@ -42,7 +42,7 @@ test.describe("POS", () => {
     await pressKeys(page, "Bàn phím nhập PIN", ["0"]);
     await expect(submit).toBeEnabled();
     await submit.click();
-    await expect(page.getByRole("alert")).toHaveText("Mã PIN không đúng, vui lòng thử lại");
+    await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveText("Mã PIN không đúng, vui lòng thử lại");
     await expect(page.locator('[data-testid="pin-dot"][data-filled="true"]')).toHaveCount(0);
     await expect(page).toHaveURL(/\/pos\/dang-nhap$/);
 

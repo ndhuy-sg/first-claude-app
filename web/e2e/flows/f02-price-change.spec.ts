@@ -40,7 +40,9 @@ test("F-02 owner đổi giá món, POS mọi chi nhánh thấy giá mới, đơn
       const admin = await browser.newPage({ baseURL, viewport: { width: 1280, height: 800 } });
       await ownerLoginUi(admin);
       await admin.goto(ROUTES.adminMenu);
-      await admin.getByRole("link", { name: MENU.bacXiu.name }).or(admin.getByRole("button", { name: MENU.bacXiu.name })).first().click();
+      await admin.getByRole("row").filter({ has: admin.getByText(MENU.bacXiu.name, { exact: true }) }).getByRole("link", { name: "Sửa" }).or(
+        admin.getByRole("row").filter({ has: admin.getByText(MENU.bacXiu.name, { exact: true }) }).getByRole("button", { name: "Sửa" }),
+      ).first().click();
       const price = admin.getByLabel(/Giá gốc/);
       await price.fill(String(NEW_PRICE));
       await admin.getByRole("button", { name: "Lưu thay đổi" }).click();

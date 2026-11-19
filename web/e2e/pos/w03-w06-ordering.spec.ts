@@ -31,7 +31,7 @@ test.describe("POS", () => {
     ({ orderId } = await openFreeTable(page));
     await page.getByRole("button", { name: /^Cà phê sữa ·/ }).click();
     const dialog = page.getByRole("dialog", { name: "Cà phê sữa" });
-    await expect(dialog.getByText("29.000đ")).toBeVisible();
+    await expect(dialog.getByText("29.000đ", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: /^L \+/ }).click();
     await dialog.getByRole("button", { name: /Thêm shot/ }).click();
     await expect(dialog.getByRole("button", { name: /Thêm shot/ })).toHaveAttribute("aria-pressed", "true");

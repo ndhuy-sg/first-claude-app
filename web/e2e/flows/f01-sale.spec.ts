@@ -64,7 +64,7 @@ test("F-01 bán tại bàn 5, giảm 10%, tiền mặt, hoá đơn điện tử,
     const value = dialog.getByRole("spinbutton").or(dialog.getByRole("textbox", { name: /%|Giá trị|Mức giảm/ })).first();
     if (await value.isVisible().catch(() => false)) await value.fill("10");
     else await tapDigits(page, "10", dialog);
-    await dialog.getByLabel(/Lý do/).fill("Khách quen");
+    await dialog.getByLabel("Lý do", { exact: true }).fill("Khách quen");
     await dialog.getByRole("button", { name: /^(Áp dụng|Duyệt|Xác nhận|Lưu)/ }).first().click();
     await expect(dialog).toBeHidden();
     await expect(page.getByText(vnd(TOTAL)).first()).toBeVisible();

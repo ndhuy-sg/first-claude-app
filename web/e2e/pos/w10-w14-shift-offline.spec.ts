@@ -26,13 +26,13 @@ test.describe("POS", () => {
 
       await page.context().setOffline(true);
       await expect(page.getByRole("alert").filter({ hasText: "Mất kết nối tới máy chủ" })).toBeVisible();
-      await expect(page.getByTestId("online-status")).toHaveText("Mất kết nối");
+      await expect(page.getByTestId("online-status").filter({ visible: true })).toHaveText("Mất kết nối");
       await expect(page.getByRole("button", { name: "Chờ kết nối để thanh toán" })).toBeDisabled();
       await expect(page.getByRole("button", { name: /^Cà phê sữa ·/ })).toBeDisabled();
       await expect(page.getByTestId("cart-line")).toContainText("Croissant bơ");
 
       await page.context().setOffline(false);
-      await expect(page.getByTestId("online-status")).toHaveText("Trực tuyến");
+      await expect(page.getByTestId("online-status").filter({ visible: true })).toHaveText("Trực tuyến");
       await expect(page.getByRole("alert").filter({ hasText: "Mất kết nối tới máy chủ" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Thanh toán 35.000đ" })).toBeEnabled();
       // the order is still on the server
@@ -73,10 +73,10 @@ test.describe("POS", () => {
     await setDeviceCN1(page, baseURL);
     await loginPin(page, "tn1");
     await expect(page).toHaveURL(/\/pos\/mo-ca$/);
-    await pressKeys(page, "Bàn phím nhập tiền", ["5", "000", "000"]);
+    await pressKeys(page, "Bàn phím nhập tiền", ["5", "0", "0", "000"]);
     await expect(page.getByTestId("opening-cash")).toHaveText("500.000đ");
     await page.getByRole("button", { name: "Mở ca và bắt đầu bán" }).click();
     await page.waitForURL(/\/pos\/ban$/);
-    await expect(page.getByText(/^Ca (sáng|chiều|tối) · mở \d{2}:\d{2}$/)).toBeVisible();
+    await expect(page.getByText(/^Ca (sáng|chiều|tối) · mở \d{2}:\d{2}$/).filter({ visible: true })).toBeVisible();
   });
 });

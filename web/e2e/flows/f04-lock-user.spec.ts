@@ -25,7 +25,7 @@ test("F-04 khoá tn1 giữa ca, POS về màn hình nhập PIN ngay", async ({ p
 
     // "ngay" = without any action on the tablet; allow a few seconds for SSE delivery.
     await expect(pos.getByText("Nhập mã PIN", { exact: false })).toBeVisible({ timeout: 10_000 });
-    await expect(pos.getByText("Chọn nhân viên")).toBeVisible();
+    await expect(pos.getByRole("heading", { name: "Chọn nhân viên", exact: true })).toBeVisible();
     const me = await api.raw("GET", "/auth/me");
     expect(me.status()).toBe(401);
   } finally {
