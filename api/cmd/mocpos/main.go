@@ -23,6 +23,7 @@ import (
 
 	"github.com/ndhuy-sg/first-claude-app/api/internal/app"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/config"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/events"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/seed"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/worker"
@@ -73,10 +74,12 @@ func withPool(ctx context.Context, cfg config.Config, fn func(*pgxpool.Pool) err
 }
 
 func serve(ctx context.Context, cfg config.Config, p *pgxpool.Pool) error {
-	d := &platform.Deps{Pool: p, Cfg: cfg, Clock: platform.SystemClock{}, Events: platform.NoopPublisher{}}
+	hub := events.NewHub() // SSE; events from the separate worker process are not delivered (phase 1)
+	d := &platform.Deps{Pool: p, Cfg: cfg, Clock: platform.SystemClock{}, Events: hub}
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: app.NewRouter(d), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
+		hub.Close() // end SSE streams so Shutdown is not held up
 		sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(sctx)

@@ -1,0 +1,52 @@
+# golangci-lint v2 configuration (test case N-04).
+# Run: cd api && golangci-lint run ./...   (needs golangci-lint >= v2.x built with Go >= go.mod's version)
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - govet         # go vet
+    - staticcheck   # includes the former gosimple + stylecheck
+    - errcheck      # unchecked errors
+    - ineffassign
+    - unused
+    - bodyclose     # HTTP response bodies are closed
+    - rowserrcheck  # rows.Err() checked after iterating
+    - sqlclosecheck # sql.Rows / Stmt are closed
+    - errorlint     # errors.Is / errors.As with wrapped errors
+    - gosec         # security: SQL string building (N-03), weak crypto, ...
+    - misspell
+    - unconvert
+    - copyloopvar
+    - durationcheck
+    - nilerr
+  settings:
+    errcheck:
+      exclude-functions:
+        - (github.com/jackc/pgx/v5.Tx).Rollback # deferred rollback after commit is expected to fail
+    gosec:
+      excludes:
+        - G104 # duplicate of errcheck
+        - G115 # integer conversions: money is int64 VND, checked by domain rules
+        - G118 # graceful shutdown deliberately uses a fresh context after ctx is done
+    staticcheck:
+      checks: ["all", "-ST1000", "-ST1003", "-ST1020", "-ST1021", "-ST1022", "-QF1008"]
+  exclusions:
+    generated: strict # skips sqlc output ("Code generated ... DO NOT EDIT")
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck, bodyclose]
+      - path: internal/(testutil|seed)/
+        linters: [gosec, errcheck]
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: strict

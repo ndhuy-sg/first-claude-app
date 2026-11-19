@@ -17,21 +17,21 @@ SELECT * FROM users WHERE id = $1;
 SELECT * FROM users WHERE lower(email) = lower(sqlc.arg(email)::text);
 
 -- name: CreateSession :exec
-INSERT INTO sessions (token_hash, user_id, device_id, kind, expires_at)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO sessions (token_hash, user_id, device_id, kind, expires_at, created_at, last_seen_at)
+VALUES ($1, $2, $3, $4, $5, sqlc.arg(now)::timestamptz, sqlc.arg(now)::timestamptz);
 
 -- name: GetActiveSession :one
 SELECT s.token_hash, s.user_id, s.device_id, s.kind, s.last_seen_at, s.expires_at,
        u.name AS user_name, u.role AS user_role, u.branch_id AS user_branch_id
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-WHERE s.token_hash = $1
+WHERE s.token_hash = sqlc.arg(token_hash)
   AND s.revoked_at IS NULL
-  AND s.expires_at > now()
+  AND s.expires_at > sqlc.arg(now)::timestamptz
   AND u.disabled_at IS NULL;
 
 -- name: TouchSession :exec
-UPDATE sessions SET last_seen_at = now() WHERE token_hash = $1;
+UPDATE sessions SET last_seen_at = sqlc.arg(now)::timestamptz WHERE token_hash = sqlc.arg(token_hash);
 
 -- name: RevokeSession :exec
 UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL;
