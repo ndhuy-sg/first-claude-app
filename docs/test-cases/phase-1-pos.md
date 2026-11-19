@@ -22,7 +22,7 @@
   - Size: M +0đ, L +6.000đ.
   - Tuỳ chọn: thêm shot +8.000đ, ít đá +0đ.
 - Thuế suất mẫu: 8%, giá bán đã gồm thuế.
-- Nhà cung cấp hoá đơn điện tử: **giả lập**. Có thể cài cho nó trả thành công, trả lỗi hoặc không phản hồi.
+- Cơ quan thuế: **giả lập** (một máy chủ giả nhận dữ liệu hoá đơn). Có thể cài cho nó trả thành công, trả lỗi hoặc không phản hồi.
 
 Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nhận (xem cuối tài liệu).
 
@@ -56,7 +56,7 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | A-05 ❓ | Không thao tác 15 phút | Phiên PIN tự khoá, phải nhập lại PIN |
 | A-06 | Khoá tài khoản nhân viên | Phiên của người đó mất hiệu lực ngay, yêu cầu tiếp theo bị 401 |
 | A-07 | Đăng xuất | Cookie cũ không dùng được nữa |
-| A-08 | Gọi API khi chưa đăng nhập | 401. Trừ các API công khai: menu, gửi liên hệ |
+| A-08 | Gọi API khi chưa đăng nhập | 401. Chỉ trang tra cứu hoá đơn `/tra-cuu/:code` là công khai |
 | A-09 | Thu ngân gọi API quản trị (tạo món) | 403 |
 | A-10 | `ql1` xem đơn của CN2 | **404** (không để lộ việc đơn đó có tồn tại) |
 | A-11 | `ql1` tạo nhân viên cho CN2 | Bị từ chối |
@@ -65,17 +65,15 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | A-14 | Mật khẩu và PIN | Lưu dạng mã hoá bcrypt. Không API nào trả về mật khẩu hay PIN đã mã hoá |
 | A-15 | Gửi yêu cầu thay đổi dữ liệu từ tên miền khác | Bị từ chối (chống CSRF bằng kiểm tra `Origin`) |
 
-## B. Chi nhánh, menu, bàn, liên hệ (API)
+## B. Chi nhánh, menu, bàn (API)
 | ID | Kiểm tra | Kết quả mong đợi |
 |---|---|---|
 | B-01 | `owner` tạo chi nhánh kèm thông tin thuế (mã số thuế, ký hiệu hoá đơn, thuế suất) | Thành công. `ql1` làm việc này → 403 |
 | B-02 | `owner` tạo, sửa nhóm món, món, size, tuỳ chọn | Thành công. Giá phải là số nguyên ≥ 0. Trùng tên món trong cùng nhóm → 409 |
 | B-03 | Giá giống nhau ở mọi chi nhánh | API menu của CN1 và CN2 trả về giá giống hệt nhau |
 | B-04 | `ql1` bật "hết món" cho Cà phê sữa | CN1 không thêm được món này vào đơn, CN2 vẫn thêm được |
-| B-05 | Món bị ẩn | Không có trong menu công khai và menu POS |
-| B-06 | API menu công khai | Không cần đăng nhập. Chỉ có món đang bán, nhóm theo thứ tự đã đặt. Có cờ "nổi bật" |
+| B-05 | Món bị ẩn | Không có trong menu POS |
 | B-07 | `ql1` tạo khu vực và bàn | Chỉ tạo được cho CN1 |
-| B-08 | Gửi form liên hệ công khai | Được lưu lại. Bị chặn khi quá 5 lần/phút từ một IP. Dữ liệu sai → 400, thông báo lỗi tiếng Việt |
 
 ## O. Đơn hàng (API)
 | ID | Kiểm tra | Kết quả mong đợi |
@@ -110,18 +108,21 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | P-08 | Bấm thanh toán 2 lần hoặc mạng gửi lại yêu cầu (cùng mã chống trùng `Idempotency-Key`) | Chỉ ghi nhận 1 lần thanh toán |
 | P-09 | Hoàn tiền cho đơn đã thanh toán | Chỉ quản lý làm được, bắt buộc nhập lý do. Tạo khoản hoàn tiền, ghi nhật ký và **tự gửi yêu cầu huỷ hoá đơn điện tử** |
 
-## E. Hoá đơn điện tử (API, nhà cung cấp giả lập)
+## E. Hoá đơn điện tử tự phát hành (API, cơ quan thuế giả lập)
 | ID | Kiểm tra | Kết quả mong đợi |
 |---|---|---|
 | E-01 | Thanh toán xong | Việc xuất hoá đơn được ghi vào hàng chờ **trong cùng giao dịch cơ sở dữ liệu** với việc thanh toán (không thể có đơn đã thanh toán mà không có yêu cầu xuất hoá đơn) |
-| E-02 | Dữ liệu gửi sang nhà cung cấp | Đúng mã số thuế và ký hiệu hoá đơn **của chi nhánh bán**. Đủ từng món: tên, SL, đơn giá, thành tiền. Có thuế suất, tiền thuế, tổng tiền, cách thanh toán. Người mua mặc định "Khách lẻ" |
-| E-03 | Nhà cung cấp trả thành công | Lưu số hoá đơn, mã tra cứu và đường dẫn tra cứu. Trạng thái "đã phát hành" |
-| E-04 | Nhà cung cấp lỗi hoặc không phản hồi | Bán hàng vẫn bình thường. Hệ thống tự thử lại, mỗi lần chờ lâu hơn. Sau 10 lần vẫn lỗi thì chuyển "thất bại" và báo trên trang quản trị |
+| E-02 | Dữ liệu hoá đơn gửi đi | Đúng mã số thuế và ký hiệu hoá đơn **của chi nhánh bán**. Đủ từng món: tên, SL, đơn giá, thành tiền. Có thuế suất, tiền thuế, tổng tiền, cách thanh toán. Người mua mặc định "Khách lẻ" |
+| E-03 | Cơ quan thuế tiếp nhận | Lưu số hoá đơn, mã tra cứu và đường dẫn tra cứu. Trạng thái "đã phát hành" |
+| E-04 | Cơ quan thuế lỗi hoặc không phản hồi | Bán hàng vẫn bình thường. Hệ thống tự thử lại, mỗi lần chờ lâu hơn. Sau 10 lần vẫn lỗi thì chuyển "thất bại" và báo trên trang quản trị |
 | E-05 | Gửi lại sau khi mạng chập chờn | Không sinh hoá đơn trùng (luôn gửi kèm cùng một mã nội bộ) |
 | E-06 | Khách lấy hoá đơn công ty | Nhập mã số thuế, tên công ty, địa chỉ, email → hoá đơn có đủ thông tin người mua. Mã số thuế sai định dạng → 400 |
 | E-07 | Đơn của CN2 | Hoá đơn xuất bằng mã số thuế và ký hiệu của CN2 |
-| E-08 | Hoàn tiền (P-09) | Gửi yêu cầu huỷ/điều chỉnh hoá đơn tới nhà cung cấp, theo dõi trạng thái |
+| E-08 | Hoàn tiền (P-09) | Tạo hoá đơn huỷ/điều chỉnh và gửi tới cơ quan thuế, theo dõi trạng thái |
 | E-09 | Quản trị xem danh sách hoá đơn | Lọc được theo trạng thái và chi nhánh. Bấm "Gửi lại" được với hoá đơn thất bại. `ql1` chỉ thấy hoá đơn của CN1 |
+| E-10 | Cấp số hoá đơn khi 50 đơn ở CN1 thanh toán cùng lúc | Số hoá đơn liên tục, không trùng, không nhảy số. CN2 có dãy số riêng |
+| E-11 | Trang tra cứu `/tra-cuu/:code` | Không cần đăng nhập, hiện đúng hoá đơn. Mã sai → 404. Không đoán được mã của hoá đơn khác (mã ngẫu nhiên, đủ dài) |
+| E-12 | Định dạng dữ liệu hoá đơn | Đúng định dạng cơ quan thuế quy định (so với file mẫu chuẩn) |
 
 ## S. Ca làm (API)
 | ID | Kiểm tra | Kết quả mong đợi |
@@ -150,7 +151,7 @@ Các case đánh dấu ❓ dựa trên một giả định cần bạn xác nh�
 | L-03 | Quyền xem nhật ký | `ql1` chỉ xem nhật ký của CN1 |
 
 ## W. Giao diện POS và trang quản trị (Playwright)
-Màn hình POS được kiểm tra ở khổ 1024×768 và 1280×800 (máy tính bảng nằm ngang). Trang quản trị kiểm tra ở khổ 1280×800.
+Màn hình POS được kiểm tra ở khổ 1180×820 (iPad) và 1280×800 (Android), chạy trên cả Chromium và WebKit (nhân trình duyệt của Safari trên iPad). Trang quản trị kiểm tra ở khổ 1280×800.
 
 | ID | Kiểm tra | Kết quả mong đợi |
 |---|---|---|
@@ -164,7 +165,7 @@ Màn hình POS được kiểm tra ở khổ 1024×768 và 1280×800 (máy tính
 | W-08 | Thanh toán VietQR | Hiện mã QR kèm số tiền. Bấm "Đã nhận tiền" thì chuyển sang màn hình hoàn tất |
 | W-09 | Khách lấy hoá đơn công ty | Form có kiểm tra mã số thuế. Bỏ trống thì hoá đơn ghi "Khách lẻ" |
 | W-10 | Mở ca / chốt ca | Đi hết luồng, màn hình chốt ca hiện đúng chênh lệch |
-| W-11 | Trang quản trị: tạo món mới | Món xuất hiện trên POS và trên trang `/menu` của website |
+| W-11 | Trang quản trị: tạo món mới | Món xuất hiện trên POS của mọi chi nhánh |
 | W-12 | Chọn chi nhánh trong trang quản trị | `ql1` chỉ thấy CN1. `owner` thấy tất cả chi nhánh và mục "Toàn chuỗi" |
 | W-13 | Trang báo cáo | Lọc theo khoảng ngày và chi nhánh. Các số liệu khớp với API |
 | W-14 | Mất mạng trên POS | Hiện thanh báo "Mất kết nối", khoá nút thanh toán, không để mất dữ liệu mà người dùng không biết. Có mạng lại thì tiếp tục được |
@@ -174,8 +175,8 @@ Màn hình POS được kiểm tra ở khổ 1024×768 và 1280×800 (máy tính
 | ID | Luồng | Kết quả mong đợi |
 |---|---|---|
 | F-01 | `tn1` mở ca → bàn 5 → thêm 2 món → giảm 10% → trả tiền mặt → hoá đơn điện tử phát hành → hiện QR tra cứu → chốt ca | Báo cáo CN1 có doanh thu đúng, CN2 không có. Chốt ca đúng số tiền |
-| F-02 | `owner` đổi giá món | POS và trang `/menu` hiện giá mới. Đơn cũ không đổi |
-| F-03 | Nhà cung cấp hoá đơn điện tử lỗi trong lúc bán | Vẫn bán bình thường. Khi nhà cung cấp hoạt động lại, hoá đơn tự phát hành |
+| F-02 | `owner` đổi giá món | POS ở mọi chi nhánh hiện giá mới. Đơn cũ không đổi |
+| F-03 | Kết nối tới cơ quan thuế lỗi trong lúc bán | Vẫn bán bình thường, khách vẫn tra cứu được hoá đơn. Khi kết nối lại, dữ liệu hoá đơn tự được gửi đi |
 | F-04 | Khoá `tn1` giữa ca | Máy POS của `tn1` bị đưa về màn hình nhập PIN ngay |
 
 ## N. Hiệu năng, bảo mật, chất lượng
