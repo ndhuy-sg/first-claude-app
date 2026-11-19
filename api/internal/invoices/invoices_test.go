@@ -167,7 +167,7 @@ func TestE09_ListAndResend(t *testing.T) {
 		} `json:"counts"`
 	}
 	var l list
-	env.Ql1().Get("/api/v1/invoices?branchId=" + fmt.Sprint(env.Fx.Branches[2])).MustStatus(t, 200).JSON(t, &l)
+	env.Ql1().Get("/api/v1/invoices?branchId="+fmt.Sprint(env.Fx.Branches[2])).MustStatus(t, 200).JSON(t, &l)
 	if l.Total != 2 || len(l.Items) != 2 || l.Counts.IssuedToday != 2 || l.Counts.Failed != 1 || l.Counts.NotSent != 1 {
 		t.Fatalf("ql1 list: total %d counts %+v", l.Total, l.Counts)
 	}
@@ -309,13 +309,13 @@ func TestE11_PublicLookup(t *testing.T) {
 	}
 	anon := env.Anon()
 	var inv invoices.Invoice
-	anon.Get("/api/v1/public/invoices/" + c1).MustStatus(t, 200).JSON(t, &inv)
+	anon.Get("/api/v1/public/invoices/"+c1).MustStatus(t, 200).JSON(t, &inv)
 	if inv.ID != p1.Order.Invoice.ID || inv.Total != 128_000 || len(inv.Lines) != 2 || inv.TotalInWords == "" {
 		t.Fatalf("public invoice: %+v", inv)
 	}
 	// lower case and without the dash also work
 	loose := regexp.MustCompile("-").ReplaceAllString(c2, "")
-	anon.Get("/api/v1/public/invoices/" + toLower(loose)).MustStatus(t, 200).JSON(t, &inv)
+	anon.Get("/api/v1/public/invoices/"+toLower(loose)).MustStatus(t, 200).JSON(t, &inv)
 	if inv.ID != p2.Order.Invoice.ID {
 		t.Fatal("normalised lookup failed")
 	}
