@@ -102,7 +102,8 @@ export function PinLoginScreen() {
       </aside>
       <section className="flex flex-1 items-center justify-center bg-white p-10">
         <div className="w-[380px]">
-          <h1 className="mb-6 text-center text-3xl font-bold">{selected ? `Xin chào, ${selected.name}` : "Chọn nhân viên để vào ca"}</h1>
+          <h1 className="text-center text-3xl font-bold">{selected ? `Xin chào, ${selected.name}` : "Chọn nhân viên để vào ca"}</h1>
+          <p className="mb-6 mt-1 text-center text-muted">Nhập mã PIN 4–6 số để vào ca</p>
           <PinPad key={staffId ?? 0} onSubmit={submit} submitLabel="Vào ca" error={error} busy={!selected || login.isPending} onChange={() => setError("")} />
           <p className="mt-6 text-center text-sm text-muted">Quên PIN? Nhờ quản lý chi nhánh đặt lại.</p>
         </div>

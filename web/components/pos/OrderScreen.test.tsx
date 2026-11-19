@@ -41,8 +41,8 @@ describe("ordering screen", () => {
     mockApi.on("GET", "/orders/{id}", makeOrder());
     renderOrder();
     expect(await screen.findByRole("navigation", { name: "Nhóm món" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Cà phê sữa, 29\.000đ/ })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "Giỏ hàng" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Cà phê sữa · 29\.000đ/ })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Đơn hàng" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Bàn 5" })).toBeInTheDocument();
   });
 
@@ -56,11 +56,11 @@ describe("ordering screen", () => {
     });
     renderOrder();
 
-    await user.click(await screen.findByRole("button", { name: /Cà phê sữa, 29\.000đ/ }));
+    await user.click(await screen.findByRole("button", { name: /^Cà phê sữa · 29\.000đ/ }));
     const dialog = screen.getByRole("dialog", { name: "Cà phê sữa" });
     expect(within(dialog).getByText("29.000đ")).toBeInTheDocument(); // Giá gốc
     expect(within(dialog).getByRole("button", { name: /Thêm vào đơn · 29\.000đ/ })).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("radio", { name: /L \+6\.000đ/ }));
+    await user.click(within(dialog).getByRole("button", { name: /^L \+6\.000đ/ }));
     const shot = within(dialog).getByRole("button", { name: /Thêm shot/ });
     expect(shot).toHaveAttribute("aria-pressed", "false");
     await user.click(shot);
@@ -80,7 +80,7 @@ describe("ordering screen", () => {
     const user = userEvent.setup();
     mockApi.on("GET", "/orders/{id}", makeOrder());
     renderOrder();
-    const sold = await screen.findByRole("button", { name: /Bạc xỉu.*hết món/ });
+    const sold = await screen.findByRole("button", { name: /^Bạc xỉu · .*hết món/ });
     expect(sold).toBeDisabled();
     expect(within(sold).getByText("Hết món")).toBeInTheDocument();
     await user.click(sold);
@@ -137,7 +137,7 @@ describe("ordering screen", () => {
     });
     const pay = screen.getByRole("button", { name: "Chờ kết nối để thanh toán" });
     expect(pay).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Cà phê sữa, 29\.000đ/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Cà phê sữa · 29\.000đ/ })).toBeDisabled();
     expect(screen.getAllByTestId("cart-line")).toHaveLength(2);
 
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);

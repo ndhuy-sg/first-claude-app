@@ -27,7 +27,7 @@ function TableCard({ table, now, onOpen, disabled }: { table: Table; now: number
       type="button"
       onClick={onOpen}
       disabled={disabled}
-      aria-label={`${table.name}, ${s.label}${o ? `, ${o.itemCount} món, ${formatVND(o.total)}` : ""}`}
+      aria-label={`${table.name} · ${s.label}${o ? ` · ${o.itemCount} món · ${formatVND(o.total)}` : ""}`}
       className={`flex h-[120px] flex-col justify-between rounded-2xl border-2 p-4 text-left transition active:scale-[0.98] disabled:opacity-60 ${s.card}`}
     >
       <span className="flex items-baseline justify-between">

@@ -67,13 +67,12 @@ export function ItemDialog({
         {product.sizes.length > 0 && (
           <fieldset>
             <legend className="mb-2 font-semibold">Size</legend>
-            <div role="radiogroup" aria-label="Size" className="inline-flex rounded-xl border border-line-strong p-1">
+            <div role="group" aria-label="Size" className="inline-flex rounded-xl border border-line-strong p-1">
               {product.sizes.map((s) => (
                 <button
                   key={s.code}
                   type="button"
-                  role="radio"
-                  aria-checked={s.code === sizeCode}
+                  aria-pressed={s.code === sizeCode}
                   onClick={() => setSizeCode(s.code)}
                   className={`h-12 min-w-28 rounded-lg px-4 font-semibold ${s.code === sizeCode ? "bg-navy text-white" : "text-ink"}`}
                 >

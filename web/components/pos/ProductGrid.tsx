@@ -62,7 +62,7 @@ export function ProductGrid({ menu, onPick, disabled }: { menu: Schemas["Menu"];
               key={p.id}
               type="button"
               disabled={p.soldOut || disabled}
-              aria-label={`${p.name}, ${formatVND(p.basePrice)}${p.soldOut ? ", hết món" : ""}`}
+              aria-label={`${p.name} · ${formatVND(p.basePrice)}${p.soldOut ? " · hết món" : ""}`}
               onClick={() => onPick(p)}
               className={`relative flex h-[112px] flex-col justify-between rounded-2xl border p-3.5 text-left ${
                 p.soldOut ? "cursor-not-allowed border-line bg-subtle text-muted opacity-60" : "border-line bg-white hover:border-navy active:scale-[0.98]"

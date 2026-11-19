@@ -9,7 +9,7 @@ import { expect, type Page } from "@playwright/test";
  */
 export const DEVICE_CN1 = "dev-device-cn1-token-0000000000000000000000";
 
-/** iPad (1180×820) and Android (1280×800) landscape, as required by section W. */
+/** iPad (1180×820) and Android (1280×800) landscape (section W); the Playwright projects set these. */
 export const POS_VIEWPORTS = [
   { width: 1180, height: 820 },
   { width: 1280, height: 800 },
@@ -68,12 +68,12 @@ export async function loginWithShift(page: Page, baseURL: string | undefined, wh
 
 /** Taps the first free table of the current area and returns its name and the new order id. */
 export async function openFreeTable(page: Page): Promise<{ table: string; orderId: number }> {
-  const card = page.getByRole("button", { name: /^Bàn \d+, Trống$/ }).first();
+  const card = page.getByRole("button", { name: /^Bàn \d+ · Trống$/ }).first();
   const label = (await card.getAttribute("aria-label")) ?? "";
   await card.click();
   await page.waitForURL(/\/pos\/don\/\d+$/);
   const orderId = Number(page.url().split("/").pop());
-  const table = label.split(",")[0];
+  const table = label.split(" · ")[0];
   await expect(page.getByRole("heading", { name: table })).toBeVisible();
   return { table, orderId };
 }
@@ -81,7 +81,7 @@ export async function openFreeTable(page: Page): Promise<{ table: string; orderI
 /** Adds "Croissant bơ" (35.000đ, no options: added straight away). */
 export async function addCroissant(page: Page) {
   await page.getByLabel("Tìm món").fill("Croissant");
-  await page.getByRole("button", { name: /^Croissant bơ,/ }).click();
+  await page.getByRole("button", { name: /^Croissant bơ ·/ }).click();
   await expect(page.getByRole("list", { name: "Món trong đơn" })).toContainText("Croissant bơ");
   await page.getByLabel("Tìm món").fill("");
 }

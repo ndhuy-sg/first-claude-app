@@ -41,7 +41,7 @@ export function DiscountDialog({
 
   const apply = (extra: { managerId?: number; managerPin?: string } = {}) => {
     setError("");
-    const body = { type, value, reason, ...extra };
+    const body = { type, value, reason: reason.trim(), ...extra };
     return set.mutateAsync({ ...body, key: idem.get(JSON.stringify(body)) }).then(onClose, (e) => {
       setError(errorCode(e) === "INVALID_MANAGER_PIN" ? "PIN quản lý không đúng" : errorMessage(e));
       throw e;
@@ -52,7 +52,7 @@ export function DiscountDialog({
     <Dialog title="Giảm giá" onClose={onClose} width={approval ? 960 : 600}>
       <div className="flex gap-6">
         <div className="flex flex-1 flex-col gap-4">
-          <div role="tablist" aria-label="Kiểu giảm giá" className="inline-flex self-start rounded-xl border border-line-strong p-1">
+          <div role="group" aria-label="Kiểu giảm giá" className="inline-flex self-start rounded-xl border border-line-strong p-1">
             {(
               [
                 ["percent", "Theo %"],
@@ -62,8 +62,7 @@ export function DiscountDialog({
               <button
                 key={t}
                 type="button"
-                role="tab"
-                aria-selected={type === t}
+                aria-pressed={type === t}
                 onClick={() => setType(t)}
                 className={`h-12 rounded-lg px-5 font-semibold ${type === t ? "bg-navy text-white" : ""}`}
               >
@@ -73,7 +72,7 @@ export function DiscountDialog({
           </div>
 
           {type === "percent" ? (
-            <div className="flex flex-wrap gap-2" aria-label="Mức giảm">
+            <div className="flex flex-wrap items-end gap-2" aria-label="Mức giảm">
               {PCT_CHIPS.map((p) => (
                 <button
                   key={p}
@@ -87,6 +86,18 @@ export function DiscountDialog({
                   {p}%
                 </button>
               ))}
+              <label className="flex flex-col gap-1 text-sm font-semibold text-muted">
+                Mức giảm (%)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={100}
+                  value={pct || ""}
+                  onChange={(e) => setPct(Math.max(0, Math.min(100, Math.trunc(Number(e.target.value) || 0))))}
+                  className="h-14 w-28 rounded-xl border border-line-strong px-3 text-lg font-bold text-ink"
+                />
+              </label>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -99,12 +110,31 @@ export function DiscountDialog({
 
           <label className="flex flex-col gap-1.5 font-semibold">
             Lý do
-            <select value={reason} onChange={(e) => setReason(e.target.value)} className="h-12 rounded-xl border border-line-strong bg-white px-3 font-normal">
+            <input
+              list="discount-reasons"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="h-12 rounded-xl border border-line-strong bg-white px-3 font-normal"
+            />
+            <datalist id="discount-reasons">
               {DISCOUNT_REASONS.map((r) => (
-                <option key={r}>{r}</option>
+                <option key={r} value={r} />
               ))}
-            </select>
+            </datalist>
           </label>
+          <div className="flex flex-wrap gap-2" aria-label="Lý do thường dùng">
+            {DISCOUNT_REASONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={reason === r}
+                onClick={() => setReason(r)}
+                className={`h-11 rounded-full px-4 text-sm font-semibold ${reason === r ? "bg-navy text-white" : "border border-line-strong bg-white"}`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
 
           <div className="rounded-xl bg-surface p-4" aria-live="polite">
             <p className="flex justify-between">
@@ -144,7 +174,7 @@ export function DiscountDialog({
               )}
               <button
                 type="button"
-                disabled={value <= 0 || tooLarge || set.isPending}
+                disabled={value <= 0 || tooLarge || !reason.trim() || set.isPending}
                 onClick={() => void apply().catch(() => {})}
                 className="h-14 flex-[2] rounded-xl bg-gold text-lg font-bold text-navy disabled:bg-subtle disabled:text-muted"
               >
@@ -179,7 +209,7 @@ export function DiscountDialog({
                   submitLabel="Duyệt"
                   keyHeight={52}
                   error={error}
-                  busy={set.isPending || tooLarge || managerId === null}
+                  busy={set.isPending || tooLarge || !reason.trim() || managerId === null}
                   onChange={() => setError("")}
                   onSubmit={(pin) => apply({ managerId: managerId!, managerPin: pin })}
                 />

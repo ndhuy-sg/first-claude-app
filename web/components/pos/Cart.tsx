@@ -33,7 +33,7 @@ export function Cart({
   const count = itemCount(order);
   const empty = order.items.length === 0;
   return (
-    <aside className="flex w-[380px] shrink-0 flex-col border-l border-line bg-white" aria-label="Giỏ hàng">
+    <aside className="flex w-[380px] shrink-0 flex-col border-l border-line bg-white" aria-label="Đơn hàng">
       <div className="flex items-start justify-between gap-3 border-b border-line p-4">
         <div className="min-w-0">
           <h2 className="text-2xl font-bold">{orderTitle(order)}</h2>
