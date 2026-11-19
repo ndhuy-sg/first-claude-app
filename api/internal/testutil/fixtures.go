@@ -47,7 +47,6 @@ type OrderSpec struct {
 	CreatedAt time.Time // zero = env clock
 }
 
-
 // InsertOrder inserts an open order with items and correct subtotal/total, returning its id.
 func (e *Env) InsertOrder(s OrderSpec) int64 {
 	e.T.Helper()
