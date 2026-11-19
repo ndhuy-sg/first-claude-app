@@ -16,7 +16,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 
 export function KpiTile({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-line bg-white p-4">
+    <div role="group" aria-label={label} className="rounded-2xl border border-line bg-white p-4">
       <div className="text-[13px] font-semibold text-muted">{label}</div>
       <div className="mt-1 text-2xl font-bold tabular-nums text-ink">{value}</div>
       {hint && <div className="mt-1 text-[13px] text-muted">{hint}</div>}
