@@ -21,6 +21,11 @@ export function usePosSession(): Session {
   return s;
 }
 
+/** Provides a session without the guards (used by tests and screens composed outside the frame). */
+export function PosSessionProvider({ value, children }: { value: Session; children: ReactNode }) {
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+}
+
 export function PosLoading({ label = "Đang tải…" }: { label?: string }) {
   return (
     <div className="flex h-full min-h-[50vh] flex-1 items-center justify-center text-lg text-muted" role="status">
