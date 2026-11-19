@@ -11,12 +11,15 @@ import (
 
 	"github.com/ndhuy-sg/first-claude-app/api/internal/auditlog"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/auth"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/authapi"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/branches"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/events"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/menu"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/orders"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/reports"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/store"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/users"
 )
 
 // NewRouter builds the API router. All routes live under /api/v1.
@@ -44,11 +47,14 @@ func NewRouter(d *platform.Deps) *gin.Engine {
 		return int(s.PosIdleLockMinutes)
 	}
 	api.Use(auth.Middleware(d.Pool, d.Clock.Now, idle))
+	api.Use(auth.OriginCheck(d.Cfg.AllowedOrigins)) // CSRF: writes need an allowed Origin (A-15)
 	api.Use(auth.Idempotency(d.Pool))
 
 	// ---- Module registrations: each module adds exactly one line below. ----
 	events.Register(api, d) // first: in tests it wraps d.Events with the SSE hub
-	// authmod.Register(api, d)
+	authapi.Register(api, d)
+	users.Register(api, d)
+	branches.Register(api, d)
 	menu.Register(api, d)
 	orders.Register(api, d)
 	// payments.Register(api, d)
