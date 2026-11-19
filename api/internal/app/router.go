@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ndhuy-sg/first-claude-app/api/internal/auditlog"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/auth"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/reports"
@@ -50,7 +51,7 @@ func NewRouter(d *platform.Deps) *gin.Engine {
 	// shifts.Register(api, d)
 	// invoices.Register(api, d)
 	reports.Register(api, d)
-	// auditlog.Register(api, d)
+	auditlog.Register(api, d)
 	// events.Register(api, d)
 
 	return r
