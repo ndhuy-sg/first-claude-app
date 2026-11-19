@@ -14,10 +14,13 @@ import (
 	"github.com/ndhuy-sg/first-claude-app/api/internal/authapi"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/branches"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/events"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/invoices"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/menu"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/orders"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/payments"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/reports"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/shifts"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/store"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/users"
 )
@@ -57,9 +60,9 @@ func NewRouter(d *platform.Deps) *gin.Engine {
 	branches.Register(api, d)
 	menu.Register(api, d)
 	orders.Register(api, d)
-	// payments.Register(api, d)
-	// shifts.Register(api, d)
-	// invoices.Register(api, d)
+	payments.Register(api, d)
+	shifts.Register(api, d)
+	invoices.Register(api, d)
 	reports.Register(api, d)
 	auditlog.Register(api, d)
 
