@@ -12,6 +12,7 @@ package platform
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -55,10 +56,25 @@ type NoopPublisher struct{}
 
 func (NoopPublisher) Publish(Event) {}
 
-// RecordingPublisher keeps published events in memory (tests).
-type RecordingPublisher struct{ Events []Event }
+// RecordingPublisher keeps published events in memory (tests). Safe for
+// concurrent Publish; read Events (or Snapshot) after the requests finished.
+type RecordingPublisher struct {
+	mu     sync.Mutex
+	Events []Event
+}
 
-func (r *RecordingPublisher) Publish(e Event) { r.Events = append(r.Events, e) }
+func (r *RecordingPublisher) Publish(e Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Events = append(r.Events, e)
+}
+
+// Snapshot returns a copy of the recorded events.
+func (r *RecordingPublisher) Snapshot() []Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Event(nil), r.Events...)
+}
 
 // ---------- Audit log ----------
 
