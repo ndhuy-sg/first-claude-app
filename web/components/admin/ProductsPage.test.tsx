@@ -137,7 +137,8 @@ describe("screen 27: product edit", () => {
     expect(body.modifiers).toEqual([{ id: 1, name: "Thêm shot", price: 8000 }]);
 
     const recipe = screen.getByRole("region", { name: "Công thức món" });
-    expect(recipe).toHaveAttribute("aria-disabled", "true");
+    expect(recipe).toHaveAttribute("data-phase", "2");
+    expect(within(recipe).queryByRole("button")).not.toBeInTheDocument();
     expect(recipe).toHaveTextContent("Giai đoạn 2");
     expect(screen.getAllByRole("button", { pressed: false }).map((b) => b.textContent)).toEqual([
       "CN1 – Mộc Nguyễn Huệ: Còn món",

@@ -218,7 +218,7 @@ function ProductForm({ product }: { product: Schemas["Product"] }) {
         </ul>
       </Section>
 
-      <section aria-label="Công thức món" aria-disabled="true" className="mt-5 rounded-2xl border border-dashed border-line-strong bg-subtle p-5 text-muted">
+      <section aria-label="Công thức món" data-phase="2" className="mt-5 rounded-2xl border border-dashed border-line-strong bg-subtle p-5 text-muted">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-bold">Công thức món</h2>
           <Chip tone="info">Giai đoạn 2</Chip>
