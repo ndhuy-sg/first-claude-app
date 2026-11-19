@@ -60,13 +60,13 @@ func TestA06_LockUserRevokesSessionsImmediately(t *testing.T) {
 	}
 
 	var found bool
-	for _, e := range env.Events.Events {
+	for _, e := range env.Events.Snapshot() {
 		if e.Type == "user.locked" && e.BranchID == env.Fx.Branches[1] {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("no user.locked event: %+v", env.Events.Events)
+		t.Fatalf("no user.locked event: %+v", env.Events.Snapshot())
 	}
 	if countAudit(t, env, "user.lock") != 1 {
 		t.Fatal("no user.lock audit")
