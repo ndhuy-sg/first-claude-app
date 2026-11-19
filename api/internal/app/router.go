@@ -10,7 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ndhuy-sg/first-claude-app/api/internal/auth"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/invoices"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/payments"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/platform"
+	"github.com/ndhuy-sg/first-claude-app/api/internal/shifts"
 	"github.com/ndhuy-sg/first-claude-app/api/internal/store"
 )
 
@@ -45,9 +48,9 @@ func NewRouter(d *platform.Deps) *gin.Engine {
 	// authmod.Register(api, d)
 	// menu.Register(api, d)
 	// orders.Register(api, d)
-	// payments.Register(api, d)
-	// shifts.Register(api, d)
-	// invoices.Register(api, d)
+	payments.Register(api, d)
+	shifts.Register(api, d)
+	invoices.Register(api, d)
 	// reports.Register(api, d)
 	// auditlog.Register(api, d)
 	// events.Register(api, d)
