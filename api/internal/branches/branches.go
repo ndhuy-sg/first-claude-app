@@ -28,7 +28,6 @@ var (
 
 	// Invoice symbol per Circular 78/2021: 1|2, C|K, 2-digit year, invoice type letter, 2 letters (e.g. 1C26MAA).
 	reSymbol  = regexp.MustCompile(`^[12][CK][0-9]{2}[TDLMNBGH][A-Z]{2}$`)
-	reTaxCode = regexp.MustCompile(`^[0-9]{10}(-[0-9]{3})?$`)
 	reBankBin = regexp.MustCompile(`^[0-9]{6}$`)
 	reDigits  = regexp.MustCompile(`^[0-9]{1,19}$`)
 )
@@ -81,7 +80,7 @@ func (s Settings) validate() error {
 	switch {
 	case s.CompanyName == nil:
 		return invalid("companyName")
-	case s.CompanyTaxCode == nil || (*s.CompanyTaxCode != "" && !reTaxCode.MatchString(*s.CompanyTaxCode)):
+	case s.CompanyTaxCode == nil || (*s.CompanyTaxCode != "" && !domain.ValidateTaxCode(*s.CompanyTaxCode)):
 		return invalid("companyTaxCode")
 	case s.InvoiceEmailFrom == nil:
 		return invalid("invoiceEmailFrom")
@@ -240,7 +239,7 @@ func (in branchInput) apply(cur store.Branch, curSymbol string) (store.Branch, s
 	}
 	if in.TaxCode != nil {
 		t := strings.TrimSpace(*in.TaxCode)
-		if t != "" && !reTaxCode.MatchString(t) {
+		if t != "" && !domain.ValidateTaxCode(t) {
 			return b, "", invalid("taxCode")
 		}
 		b.TaxCode = t
